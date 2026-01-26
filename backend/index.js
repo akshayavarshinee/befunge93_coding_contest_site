@@ -140,8 +140,8 @@ app.post('/auth/register', async (req, res) => {
         res.cookie("authcookie", token, {
             maxAge: 900000,
             httpOnly: true,
-            secure: false,
-            sameSite: "lax"
+            secure: true,
+            sameSite: "none"
         });
 
 
@@ -190,8 +190,8 @@ app.post('/auth/login', async (req, res) => {
         res.cookie("authcookie", token, {
             maxAge: 900000,
             httpOnly: true,
-            secure: false,
-            sameSite: "lax"
+            secure: true,
+            sameSite: "none"
         });
 
 
@@ -251,8 +251,8 @@ app.post("/auth/admin/login", async (req, res) => {
         res.cookie("authcookie", token, {
             maxAge: 900000,
             httpOnly: true,
-            secure: false,
-            sameSite: "lax"
+            secure: true,
+            sameSite: "none"
         });
 
         return res.status(200).json({message:"Admin logged in successfully"});
