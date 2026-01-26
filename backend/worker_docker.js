@@ -162,7 +162,7 @@ const worker = new Worker(
     },
     {
         connection: new Redis(env.REDIS_URL, { maxRetriesPerRequest: null }),
-        concurrency: 5,         // Limit concurrent Docker containers
+        concurrency: 3,         // Limit concurrent Docker containers
         lockDuration: 10000,    // 10 seconds lock (longer for Docker operations)
     }
 );

@@ -3,11 +3,11 @@ import env from "./env.js";
 
 export const db = new Pool({
     connectionString: process.env.DATABASE_URL,
-    host: env.DB_HOST,
-    port: env.DB_PORT || 5432,
-    user: env.DB_USER,
-    password: env.DB_PASSWORD,
-    database: env.DB_NAME,
+    // host: env.DB_HOST,
+    // port: env.DB_PORT || 5432,
+    // user: env.DB_USER,
+    // password: env.DB_PASSWORD,
+    // database: env.DB_NAME,
     ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false
 })
 
