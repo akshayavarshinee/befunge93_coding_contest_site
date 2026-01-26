@@ -841,14 +841,13 @@ app.get("/api/leaderboard", authenticateToken,  async(req, res) => {
     }
 })
 
-
-
+const PORT = process.env.PORT || env.PORT || 5000;
 const start_server = async () =>{
     try{
         await connect_db();
         // app.listen(5000, "0.0.0.0", () => {
-        app.listen(env.PORT, () => {
-            console.log("Server running on network http://localhost:5000");
+        app.listen(PORT, "0.0.0.0", () => {
+            console.log("Server running on port " + PORT);
         });
     }
     catch(err){
