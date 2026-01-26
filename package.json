@@ -1,0 +1,31 @@
+{
+  "name": "coding_contest_site",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "backend": "nodemon backend/index.js",
+    "worker": "node backend/worker.js",
+    "worker:docker": "node backend/worker_docker.js",
+    "docker": "docker start redis",
+    "wait:redis": "wait-on tcp:127.0.0.1:6379",
+    "frontend": "npm --prefix frontend run dev",
+    "start": "concurrently --kill-others-on-fail \"npm run docker\" \"npm run wait:redis && npm run backend\" \"npm run wait:redis && npm run worker\" \"npm run frontend\"",
+    "dev": "concurrently --kill-others-on-fail \"npm run docker\" \"npm run wait:redis && npm run backend\" \"npm run wait:redis && npm run worker:docker\" \"npm run frontend\"",
+    "setup:docker": "npm --prefix backend run setup:docker",
+    "test:docker": "npm --prefix backend run test:docker"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.91.1",
+    "dotenv": "^17.2.3",
+    "k6": "^0.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "wait-on": "^9.0.3"
+  }
+}
