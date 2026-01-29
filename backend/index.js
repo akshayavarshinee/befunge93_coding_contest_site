@@ -19,9 +19,28 @@ const app = express();
 const saltRounds = 10;
 
 // * Middlewares
+const allowedOrigins = [
+    env.VITE_URL,
+    "http://localhost:8080",
+    "http://localhost:5173", // Common Vite port
+    "https://" + (env.VITE_URL || "").replace(/^https?:\/\//, ""),
+    "http://" + (env.VITE_URL || "").replace(/^https?:\/\//, ""),
+].filter(Boolean);
+
 app.use(cors({
-    origin: env.VITE_URL || "http://localhost:8080",
-    credentials: true
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin.replace(/\/$/, ""))) {
+            callback(null, true);
+        } else {
+            console.warn(`[CORS] Request from blocked origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token']
 }));
 app.use(express.json());
 app.use(express.urlencoded({extended:true}))
