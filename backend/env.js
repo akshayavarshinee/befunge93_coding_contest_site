@@ -12,4 +12,6 @@ export default{
     REDIS_URL: process.env.REDIS_URL,
     VITE_URL: process.env.VITE_URL,
     ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET,
+    DOMAIN: process.env.DOMAIN,
+    NODE_ENV: process.env.NODE_ENV,
 }

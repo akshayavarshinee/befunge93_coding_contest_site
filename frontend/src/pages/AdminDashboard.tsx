@@ -38,8 +38,13 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showNewContestModal, setShowNewContestModal] = useState(false);
   const [showNewProblemModal, setShowNewProblemModal] = useState(false);
+  const [showAddExistingModal, setShowAddExistingModal] = useState(false);
+  const [existingProblems, setExistingProblems] = useState<Problem[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [editingProblemId, setEditingProblemId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'problems' | 'leaderboard'>('problems');
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [extendMinutes, setExtendMinutes] = useState(10);
 
   // New contest form
   const [newContest, setNewContest] = useState({ name: '', duration: 120 });
@@ -52,8 +57,8 @@ const AdminDashboard = () => {
     output_format: '',
     example_input: '',
     example_output: '',
-    test_cases: '',
-    test_case_results: '',
+    test_cases: [] as { input: string; expected_output: string }[],
+    points: 100,
   });
 
   useEffect(() => {
@@ -145,14 +150,86 @@ const AdminDashboard = () => {
         toast({ title: 'Contest Reset', description: 'The contest has been reset. All leaderboard and submission data cleared.' });
         
         setContests(prev => prev.map(c => 
-            c.id === contestId ? { ...c, start_time: null, end_time: null } : c
+            c.id === contestId ? { ...c, start_time: null, end_time: null, is_paused: false, total_paused_duration: 0 } : c
         ));
         if (selectedContest?.id === contestId) {
-            setSelectedContest(prev => prev ? { ...prev, start_time: null, end_time: null } : null);
+            setSelectedContest(prev => prev ? { ...prev, start_time: null, end_time: null, is_paused: false, total_paused_duration: 0 } : null);
         }
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to reset contest', variant: 'destructive' });
     }
+  };
+
+  const handlePauseContest = async (contestId: string) => {
+    try {
+        await contestApi.pause(contestId);
+        toast({ title: 'Contest Paused', description: 'Contest is now paused.' });
+         setContests(prev => prev.map(c => 
+            c.id === contestId ? { ...c, is_paused: true } : c
+        ));
+        if (selectedContest?.id === contestId) {
+            setSelectedContest(prev => prev ? { ...prev, is_paused: true } : null);
+        }
+    } catch (e) {
+        toast({ title: 'Error', description: 'Failed to pause contest', variant: 'destructive' });
+    }
+  };
+
+  const handleResumeContest = async (contestId: string) => {
+    try {
+        await contestApi.resume(contestId);
+        toast({ title: 'Contest Resumed', description: 'Contest is running again.' });
+         setContests(prev => prev.map(c => 
+            c.id === contestId ? { ...c, is_paused: false } : c
+        ));
+        if (selectedContest?.id === contestId) {
+            setSelectedContest(prev => prev ? { ...prev, is_paused: false } : null);
+        }
+        // Force refresh to get new end time if needed
+        fetchContests(); 
+        if(selectedContest) handleSelectContest(selectedContest);
+    } catch (e) {
+        toast({ title: 'Error', description: 'Failed to resume contest', variant: 'destructive' });
+    }
+  };
+
+  const handleExtendContest = async () => {
+    if (!selectedContest || !extendMinutes) return;
+    try {
+        await contestApi.extend(selectedContest.id, extendMinutes);
+        toast({ title: 'Contest Extended', description: `Added ${extendMinutes} minutes to the contest.` });
+        setShowExtendModal(false);
+        fetchContests();
+        handleSelectContest(selectedContest);
+    } catch (e) {
+        toast({ title: 'Error', description: 'Failed to extend contest', variant: 'destructive' });
+    }
+  };
+
+  const handleSearchProblems = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+        setExistingProblems([]);
+        return;
+    }
+    try {
+        const results = await contestApi.searchProblems(query);
+        setExistingProblems(results);
+    } catch (e) {
+        console.error(e);
+    }
+  };
+
+  const handleAddExistingProblem = async (problemId: string) => {
+      if (!selectedContest) return;
+      try {
+          await contestApi.addExistingProblem(selectedContest.id, problemId, 100);
+          toast({ title: "Success", description: "Problem added to contest" });
+          fetchProblems(selectedContest.id);
+          setShowAddExistingModal(false);
+      } catch (e: any) {
+          toast({ title: "Error", description: e.response?.data?.message || "Failed to add problem", variant: "destructive" });
+      }
   };
 
   const handleCreateContest = async () => {
@@ -170,21 +247,20 @@ const AdminDashboard = () => {
   };
 
   const handleSaveProblem = async () => {
-    if (!newProblem.name.trim() || !selectedContest) return;
+    if (!newProblem.name.trim()) return;
 
     try {
         const problemData = {
             ...newProblem,
-            contestId: selectedContest.id,
-            test_cases: newProblem.test_cases ? JSON.parse(newProblem.test_cases) : [],
-            test_case_results: newProblem.test_case_results ? JSON.parse(newProblem.test_case_results) : []
+            contestId: selectedContest?.id,
+            // test_cases is already an array of objects
         };
 
         if (editingProblemId) {
             await contestApi.updateProblem(editingProblemId, problemData);
             toast({ title: 'Problem Updated', description: `"${newProblem.name}" has been updated.` });
         } else {
-            await contestApi.addProblem(selectedContest.id, problemData);
+            await contestApi.addProblem(selectedContest?.id || '', problemData);
             toast({ title: 'Problem Created', description: `"${newProblem.name}" has been added.` });
         }
         
@@ -197,13 +273,13 @@ const AdminDashboard = () => {
           output_format: '',
           example_input: '',
           example_output: '',
-          test_cases: '',
-          test_case_results: '',
+          test_cases: [],
+          points: 100,
         });
-        fetchProblems(selectedContest.id);
+        if (selectedContest) fetchProblems(selectedContest.id);
     } catch (e) {
         console.error(e);
-        toast({ title: 'Error', description: 'Failed to save problem. Check JSON format.', variant: 'destructive' });
+        toast({ title: 'Error', description: 'Failed to save problem.', variant: 'destructive' });
     }
   };
 
@@ -216,15 +292,15 @@ const AdminDashboard = () => {
         output_format: '',
         example_input: '',
         example_output: '',
-        test_cases: '',
-        test_case_results: '',
+        test_cases: [{ input: '', expected_output: '' }],
+        points: 100,
     });
     setShowNewProblemModal(true);
-    fetchProblems(selectedContest.id);
   };
 
   const handleEditProblem = (problem: Problem) => {
     setEditingProblemId(problem.id);
+    
     setNewProblem({
         name: problem.name,
         description: problem.description,
@@ -232,11 +308,33 @@ const AdminDashboard = () => {
         output_format: problem.output_format || '',
         example_input: problem.example_input || '',
         example_output: problem.example_output || '',
-        test_cases: JSON.stringify(problem.test_cases || []),
-        test_case_results: JSON.stringify(problem.test_case_results || []),
+        test_cases: problem.test_cases || [{ input: '', expected_output: '' }],
+        points: problem.points || 100,
     });
     setShowNewProblemModal(true);
-    fetchProblems(selectedContest.id);
+  };
+
+  const addTestCase = () => {
+    setNewProblem(prev => ({
+      ...prev,
+      test_cases: [...prev.test_cases, { input: '', expected_output: '' }]
+    }));
+  };
+
+  const removeTestCase = (index: number) => {
+    setNewProblem(prev => ({
+      ...prev,
+      test_cases: prev.test_cases.filter((_, i) => i !== index)
+    }));
+  };
+
+  const updateTestCase = (index: number, field: 'input' | 'expected_output', value: string) => {
+    setNewProblem(prev => ({
+      ...prev,
+      test_cases: prev.test_cases.map((tc, i) => 
+        i === index ? { ...tc, [field]: value } : tc
+      )
+    }));
   };
 
   const handleDeleteProblem = async (problemId: string) => {
@@ -406,6 +504,34 @@ const AdminDashboard = () => {
                   )}
                   {getContestStatus(selectedContest) === 'running' && (
                     <>
+                      {selectedContest.is_paused ? (
+                         <Button
+                            variant="success"
+                            onClick={() => handleResumeContest(selectedContest.id)}
+                            className="gap-2"
+                         >
+                            <Play className="w-4 h-4" />
+                            Resume
+                         </Button>
+                      ) : (
+                         <Button
+                            variant="warning"
+                            onClick={() => handlePauseContest(selectedContest.id)}
+                            className="gap-2"
+                         >
+                            <Clock className="w-4 h-4" />
+                            Pause
+                         </Button>
+                      )}
+                    
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowExtendModal(true)}
+                        className="gap-2"
+                      >
+                        <Clock className="w-4 h-4" />
+                        Extend
+                      </Button>
                       <Button
                         variant="danger"
                         onClick={() => handleEndContest(selectedContest.id)}
@@ -479,15 +605,26 @@ const AdminDashboard = () => {
                     <FileText className="w-5 h-5 text-primary" />
                     Problems
                   </h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleOpenNewProblem}
-                    className="gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Problem
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAddExistingModal(true)}
+                      className="gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Existing
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenNewProblem}
+                      className="gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Create New
+                    </Button>
+                  </div>
                 </div>
 
                 {problems.length === 0 ? (
@@ -543,9 +680,13 @@ const AdminDashboard = () => {
               <div className="text-center">
                 <Trophy className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
                 <h3 className="text-xl font-semibold text-foreground mb-2">Select a Contest</h3>
-                <p className="text-muted-foreground">
-                  Choose a contest from the sidebar to manage its problems
+                <p className="text-muted-foreground mb-6">
+                  Choose a contest from the sidebar to manage its problems, or create a standalone problem.
                 </p>
+                <Button variant="outline" className="gap-2" onClick={handleOpenNewProblem}>
+                  <Plus className="w-4 h-4" />
+                  Create Standalone Problem
+                </Button>
               </div>
             </div>
           )}
@@ -704,33 +845,67 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-foreground mb-2 block">
-                      Hidden Test Cases (JSON array)
+                <div className="grid gap-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-foreground">
+                      Test Cases
                     </label>
-                    <Textarea
-                      placeholder='["input1", "input2"]'
-                      value={newProblem.test_cases}
-                      onChange={(e) =>
-                        setNewProblem((prev) => ({ ...prev, test_cases: e.target.value }))
-                      }
-                      rows={3}
-                      className="font-mono text-sm"
-                    />
+                    <Button variant="outline" size="sm" onClick={addTestCase} className="gap-2">
+                       <Plus className="w-4 h-4" />
+                       Add Case
+                    </Button>
                   </div>
+                  
+                  <div className="space-y-4">
+                      {newProblem.test_cases.map((tc, index) => (
+                          <div key={index} className="p-4 rounded-lg bg-secondary/20 border border-border/30 relative">
+                               <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  onClick={() => removeTestCase(index)} 
+                                  className="absolute top-2 right-2 text-destructive h-8 w-8"
+                                  disabled={newProblem.test_cases.length === 1}
+                               >
+                                  <Trash2 className="w-4 h-4" />
+                               </Button>
+
+                               <div className="grid sm:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Input</label>
+                                    <Textarea
+                                        placeholder="Input for test case"
+                                        value={tc.input}
+                                        onChange={(e) => updateTestCase(index, 'input', e.target.value)}
+                                        rows={2}
+                                        className="font-mono text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Expected Output</label>
+                                    <Textarea
+                                        placeholder="Expected result"
+                                        value={tc.expected_output}
+                                        onChange={(e) => updateTestCase(index, 'expected_output', e.target.value)}
+                                        rows={2}
+                                        className="font-mono text-sm"
+                                    />
+                                  </div>
+                               </div>
+                          </div>
+                      ))}
+                  </div>
+
                   <div>
                     <label className="text-sm font-medium text-foreground mb-2 block">
-                      Expected Results (JSON array)
+                      Points
                     </label>
-                    <Textarea
-                      placeholder='["output1", "output2"]'
-                      value={newProblem.test_case_results}
+                    <Input
+                      type="number"
+                      placeholder="100"
+                      value={newProblem.points}
                       onChange={(e) =>
-                        setNewProblem((prev) => ({ ...prev, test_case_results: e.target.value }))
+                        setNewProblem((prev) => ({ ...prev, points: Number(e.target.value) }))
                       }
-                      rows={3}
-                      className="font-mono text-sm"
                     />
                   </div>
                 </div>
@@ -747,6 +922,90 @@ const AdminDashboard = () => {
               </div>
             </motion.div>
           </div>
+        )}
+
+        {/* Extend Contest Modal */}
+        {showExtendModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="glass-card rounded-xl p-6 border border-border/30 w-full max-w-sm"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-foreground">Extend Contest</h3>
+                <Button variant="ghost" size="icon" onClick={() => setShowExtendModal(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    Extra Minutes
+                  </label>
+                  <Input
+                    type="number"
+                    value={extendMinutes}
+                    onChange={(e) => setExtendMinutes(Number(e.target.value))}
+                    min={1}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <Button variant="ghost" onClick={() => setShowExtendModal(false)}>
+                  Cancel
+                </Button>
+                <Button variant="glow" onClick={handleExtendContest} className="gap-2">
+                  <Clock className="w-4 h-4" />
+                  Extend
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Add Existing Problem Modal */}
+        {showAddExistingModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="glass-card rounded-xl p-6 border border-border/30 w-full max-w-lg"
+                >
+                     <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-xl font-bold text-foreground">Add Existing Problem</h3>
+                        <Button variant="ghost" size="icon" onClick={() => setShowAddExistingModal(false)}>
+                            <X className="w-4 h-4" />
+                        </Button>
+                    </div>
+                    
+                    <Input 
+                        placeholder="Search problems by name..." 
+                        value={searchQuery}
+                        onChange={(e) => handleSearchProblems(e.target.value)}
+                        className="mb-4"
+                    />
+                    
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        {existingProblems.map((p) => (
+                            <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50">
+                                <div>
+                                    <div className="font-medium">{p.name}</div>
+                                    <div className="text-xs text-muted-foreground line-clamp-1">{p.description}</div>
+                                </div>
+                                <Button size="sm" onClick={() => handleAddExistingProblem(p.id)}>
+                                    Add
+                                </Button>
+                            </div>
+                        ))}
+                        {existingProblems.length === 0 && searchQuery && (
+                            <div className="text-center text-muted-foreground p-4">No problems found.</div>
+                        )}
+                    </div>
+                </motion.div>
+            </div>
         )}
       </div>
     </div>

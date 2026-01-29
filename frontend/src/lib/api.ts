@@ -38,6 +38,9 @@ export interface Contest {
   duration: number;
   start_time: string | null;
   end_time: string | null;
+  is_paused?: boolean;
+  paused_at?: string;
+  total_paused_duration?: number;
 }
 
 export interface Problem {
@@ -48,8 +51,8 @@ export interface Problem {
   output_format?: string;
   example_input?: string;
   example_output?: string;
-  test_cases?: string[];
-  test_case_results?: string[];
+  test_cases?: any[]; // Changed to any[] to support object structure
+  points?: number;
   contest_id: string;
 }
 
@@ -164,6 +167,16 @@ export const contestApi = {
     return response.data;
   },
 
+  pause: async (id: string) => {
+    const response = await api.post(`/api/admin/contests/${id}/pause`);
+    return response.data;
+  },
+
+  resume: async (id: string) => {
+    const response = await api.post(`/api/admin/contests/${id}/resume`);
+    return response.data;
+  },
+
   delete: async (id: string) => {
     const response = await api.delete(`/api/admin/contests/${id}`);
     return response.data;
@@ -171,6 +184,21 @@ export const contestApi = {
 
   reset: async (id: string) => {
     const response = await api.post(`/api/admin/contests/${id}/reset`);
+    return response.data;
+  },
+
+  extend: async (id: string, minutes: number) => {
+    const response = await api.post(`/api/admin/contests/${id}/extend`, { minutes });
+    return response.data;
+  },
+
+  searchProblems: async (query: string): Promise<Problem[]> => {
+    const response = await api.get(`/api/admin/problems/search?q=${query}`);
+    return response.data;
+  },
+
+  addExistingProblem: async (contestId: string, problemId: string, points: number) => {
+    const response = await api.post(`/api/admin/contests/${contestId}/problems`, { problemId, points });
     return response.data;
   },
 };

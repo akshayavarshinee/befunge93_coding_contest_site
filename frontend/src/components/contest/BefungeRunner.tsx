@@ -175,6 +175,11 @@ const BefungeRunner = ({ code }: BefungeRunnerProps) => {
         }
         case '&': {
           // Read integer from input
+          // Skip leading non-digits
+          while (s.inputIndex < s.inputBuffer.length && !/\d/.test(s.inputBuffer[s.inputIndex])) {
+            s.inputIndex++;
+          }
+          
           let num = '';
           while (s.inputIndex < s.inputBuffer.length && /\d/.test(s.inputBuffer[s.inputIndex])) {
             num += s.inputBuffer[s.inputIndex++];
@@ -220,8 +225,13 @@ const BefungeRunner = ({ code }: BefungeRunnerProps) => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       setIsRunning(false);
     } else {
-      if (state.halted) {
+      const isAtStart = state.x === 0 && state.y === 0 && state.dx === 1 && state.dy === 0 && 
+                        state.stack.length === 0 && state.output === '' && state.inputIndex === 0;
+
+      if (state.halted || isAtStart) {
         setState(initializeState(code, customInput));
+      } else {
+        setState(s => ({ ...s, inputBuffer: customInput }));
       }
       setIsRunning(true);
       intervalRef.current = setInterval(() => {
@@ -375,7 +385,11 @@ const BefungeRunner = ({ code }: BefungeRunnerProps) => {
              <div className="p-3 bg-card/5">
                  <Input 
                     value={customInput} 
-                    onChange={(e) => setCustomInput(e.target.value)}
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomInput(val);
+                        setState(s => ({ ...s, inputBuffer: val }));
+                    }}
                     placeholder="Input buffer..."
                     className="h-8 font-mono text-xs bg-background/50 border-border/30"
                  />

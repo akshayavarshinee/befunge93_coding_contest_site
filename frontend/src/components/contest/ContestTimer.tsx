@@ -4,16 +4,23 @@ import { Clock, AlertTriangle } from 'lucide-react';
 
 interface ContestTimerProps {
   endTime: Date;
+  isPaused?: boolean;
   onTimeUp?: () => void;
 }
 
-const ContestTimer = ({ endTime, onTimeUp }: ContestTimerProps) => {
+const ContestTimer = ({ endTime, isPaused, onTimeUp }: ContestTimerProps) => {
   const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
   const [isExpired, setIsExpired] = useState(false);
   const [isWarning, setIsWarning] = useState(false);
 
   useEffect(() => {
     const calculateTimeLeft = () => {
+      if (isPaused) {
+          // If paused, we don't recalculate based on current 'now', 
+          // we just return the current timeLeft state or wait until resumed.
+          // However, for the very first call after a pause starts, we want to keep the last value.
+          return null; 
+      }
       const now = new Date();
       const difference = endTime.getTime() - now.getTime();
 
@@ -33,13 +40,16 @@ const ContestTimer = ({ endTime, onTimeUp }: ContestTimerProps) => {
       return { hours, minutes, seconds };
     };
 
-    setTimeLeft(calculateTimeLeft());
+    const initial = calculateTimeLeft();
+    if (initial) setTimeLeft(initial);
+
     const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
+      const updated = calculateTimeLeft();
+      if (updated) setTimeLeft(updated);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [endTime, onTimeUp]);
+  }, [endTime, onTimeUp, isPaused]);
 
   const formatNumber = (num: number) => String(num).padStart(2, '0');
 

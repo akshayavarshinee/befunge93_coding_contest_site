@@ -63,6 +63,7 @@ const ContestArena = () => {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   const [showResources, setShowResources] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   
   // Submissions view state
   const [viewMode, setViewMode] = useState<'description' | 'submissions'>('description');
@@ -110,55 +111,71 @@ const ContestArena = () => {
             await contestApi.join(contestId);
         } catch (error: any) {
             console.error("Failed to join contest", error);
-            toast({
-                title: "Error",
-                description: "Failed to join contest.",
-                variant: "destructive",
-            });
-            navigate('/api/contests');
+            // Don't redirect immediately on join failure if it's just a re-join, but api handles it.
+             if (error.response?.status !== 200) {
+                 toast({
+                    title: "Error",
+                    description: "Failed to join contest.",
+                    variant: "destructive",
+                });
+                navigate('/api/contests');
+             }
         }
     };
     joinContest();
   }, [contestId, user]);
 
-  useEffect(() => {
-    const fetchProblems = async () => {
+  const fetchContestData = async () => {
       if (!contestId) return;
-      setIsLoading(true);
       try {
         const data = await contestApi.getById(contestId);
+        
+        // Update problems
         setProblems(data.problems);
-        if (data.problems.length > 0) {
-            setSelectedProblem(data.problems[0]);
-        }
-        // Set timer from server's end_time
+        
+        setSelectedProblem(prev => {
+            if (!prev) return (data.problems.length > 0 ? data.problems[0] : null);
+            // Stay on the same problem by ID to preserve current view
+            const updated = data.problems.find(p => p.id === prev.id);
+            return updated || prev;
+        });
+        
+        // Update timer
         if (data.contest.end_time) {
             setContestEndTime(new Date(data.contest.end_time));
         }
+
+        // Handle Pause
+        setIsPaused(!!data.contest.is_paused);
+
       } catch (error: any) {
-        console.error("Failed to fetch contest problems", error);
-        
-        // Handle explicit backend errors (like contest not started)
-        if (error.response && error.response.data && error.response.data.error) {
-            toast({ 
-                title: "Access Denied", 
-                description: error.response.data.error, 
-                variant: "destructive" 
-            });
-        } else {
-            toast({ 
-                title: "Error", 
-                description: "Could not load contest problems.", 
-                variant: "destructive" 
-            });
-        }
+        console.error("Failed to fetch contest data", error);
+         if (isLoading) { // Only show toast on first load to avoid spamming
+            if (error.response && error.response.data && error.response.data.error) {
+                toast({ 
+                    title: "Access Denied", 
+                    description: error.response.data.error, 
+                    variant: "destructive" 
+                });
+            }
+         }
       } finally {
         setIsLoading(false);
       }
-    };
-    fetchProblems();
+  };
 
-  }, [contestId, toast]);
+  // Initial Load
+  useEffect(() => {
+    fetchContestData();
+    setIsLoading(true); // Set loading true initially
+  }, [contestId]);
+
+  // Polling
+  useEffect(() => {
+      if (!contestId) return;
+      const interval = setInterval(fetchContestData, 10000);
+      return () => clearInterval(interval);
+  }, [contestId]);
 
     // Autosave: Load code
   useEffect(() => {
@@ -221,8 +238,8 @@ const ContestArena = () => {
     // setViewMode('description'); // Optional: switch back automatically
   };
 
-  const handleSubmit = async () => {
-    if (!selectedProblem || !code.trim() || isTimeUp) return;
+   const handleSubmit = async () => {
+    if (!selectedProblem || !code.trim() || isTimeUp || isPaused) return;
 
     setSubmissionStatus('queued');
     
@@ -246,7 +263,7 @@ const ContestArena = () => {
       
       const poll = setInterval(async () => {
         try {
-            if (Date.now() - startPoll > 60000) {
+            if (Date.now() - startPoll > 10000) {
                 clearInterval(poll);
                 setSubmissionStatus('error');
                 toast({ title: "Timeout", description: "Submission timed out", variant: "destructive" });
@@ -268,7 +285,7 @@ const ContestArena = () => {
                      toast({
                         title: 'Accepted!',
                         description: 'Great job! Your solution is correct.',
-                        variant: 'default', // 'default' is usually green/success in this UI? check 
+                        variant: 'success', // 'default' is usually green/success in this UI? check 
                       });
                 } else if (status.result?.verdict === 'Wrong Answer') {
                     setSubmissionStatus('wrong');
@@ -409,14 +426,20 @@ const ContestArena = () => {
         </div>
 
         <div className="flex items-center gap-4">
-          {violations.length > 0 && (
+          {/* {violations.length > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-destructive/10 border border-destructive/20 animate-pulse">
                 <AlertTriangle className="w-4 h-4 text-destructive" />
                 <span className="text-xs text-destructive font-bold font-mono">{violations.length} violations</span>
             </div>
-          )}
+          )} */}
           
-          {contestEndTime && <ContestTimer endTime={contestEndTime} onTimeUp={() => setIsTimeUp(true)} />}
+          {contestEndTime && (
+            <ContestTimer 
+                endTime={contestEndTime} 
+                isPaused={isPaused}
+                onTimeUp={() => setIsTimeUp(true)} 
+            />
+          )}
           
           <Button variant="ghost" size="sm" className="gap-2" onClick={() => setShowResources(true)}>
             <BookOpen className="w-4 h-4" />
@@ -722,7 +745,7 @@ const ContestArena = () => {
                             ))}
                         </div>
                      </section>
-
+ 
                      <section>
                         <h3 className="text-lg font-semibold mb-3">Tips</h3>
                         <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
@@ -735,6 +758,38 @@ const ContestArena = () => {
                 </div>
             </SheetContent>
         </Sheet>
+
+        {/* Pause Overlay */}
+        <AnimatePresence>
+            {isPaused && (
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[100] bg-background/60 backdrop-blur-md flex items-center justify-center p-4"
+                >
+                    <motion.div
+                        initial={{ scale: 0.9, y: 20 }}
+                        animate={{ scale: 1, y: 0 }}
+                        className="glass-card p-12 rounded-2xl border-warning-amber/30 text-center max-w-lg shadow-2xl shadow-warning-amber/10"
+                    >
+                        <div className="w-20 h-20 bg-warning-amber/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Clock className="w-10 h-10 text-warning-amber animate-pulse" />
+                        </div>
+                        <h2 className="text-4xl font-black text-foreground mb-4 tracking-tight">CONTEST PAUSED</h2>
+                        <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
+                            The admin has temporarily paused the contest. 
+                            The timer is frozen and submissions are locked.
+                        </p>
+                        <div className="flex items-center justify-center gap-2 text-warning-amber font-mono font-bold animate-bounce">
+                            <span className="w-2 h-2 rounded-full bg-warning-amber" />
+                            AWAITING RESUME
+                        </div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+
       </div>
     </div>
   );

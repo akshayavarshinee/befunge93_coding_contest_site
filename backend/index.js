@@ -20,7 +20,7 @@ const saltRounds = 10;
 
 // * Middlewares
 app.use(cors({
-    origin: env.VITE_URL,
+    origin: env.VITE_URL || "http://localhost:8080",
     credentials: true
 }));
 app.use(express.json());
@@ -29,7 +29,7 @@ app.use(cookieParser())
 app.use(helmet());
 
 // Request Logger
-app.use((req, res, next) => {
+app.use((req, res, next) => {   
     const start = Date.now();
     res.on('finish', () => {
         const duration = Date.now() - start;
@@ -130,18 +130,12 @@ app.post('/auth/register', async (req, res) => {
         );
 
 
-        // res.cookie('authcookie', token, {
-        //     maxAge: 900000,
-        //     httpOnly: true,
-        //     secure: process.env.NODE_ENV === "production",
-        //     sameSite: 'none'
-        // });
-
         res.cookie("authcookie", token, {
             maxAge: 900000,
             httpOnly: true,
-            secure: true,
-            sameSite: "none"
+            secure: env.NODE_ENV === "production",
+            sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+            domain: env.NODE_ENV === "production" ? env.DOMAIN : "localhost"
         });
 
 
@@ -180,18 +174,12 @@ app.post('/auth/login', async (req, res) => {
         );
 
 
-        // res.cookie('authcookie', token, {
-        //     maxAge: 900000,
-        //     httpOnly: true,
-        //     secure: process.env.NODE_ENV === "production",
-        //     sameSite: 'none'
-        // });
-
         res.cookie("authcookie", token, {
             maxAge: 900000,
             httpOnly: true,
-            secure: true,
-            sameSite: "none"
+            secure: env.NODE_ENV === "production",
+            sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+            domain: env.NODE_ENV === "production" ? env.DOMAIN : "localhost"
         });
 
 
@@ -207,8 +195,9 @@ app.post('/auth/login', async (req, res) => {
 app.post('/auth/logout', authenticateToken, (req, res) => {
     // res.clearCookie('authcookie');
     res.clearCookie("authcookie", {
-        sameSite: "lax",
-        secure: false
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        secure: env.NODE_ENV === "production",
+        domain: env.NODE_ENV === "production" ? env.DOMAIN : "localhost"
     });
 
     return res.status(200).json({message:"User logged out successfully"});
@@ -241,18 +230,12 @@ app.post("/auth/admin/login", async (req, res) => {
         );
 
 
-        // res.cookie('authcookie', token, {
-        //     maxAge: 900000,
-        //     httpOnly: true,
-        //     secure: process.env.NODE_ENV === "production",
-        //     sameSite: 'none'
-        // });
-
         res.cookie("authcookie", token, {
             maxAge: 900000,
             httpOnly: true,
-            secure: true,
-            sameSite: "none"
+            secure: env.NODE_ENV === "production",
+            sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+            domain: env.NODE_ENV === "production" ? env.DOMAIN : "localhost"
         });
 
         return res.status(200).json({message:"Admin logged in successfully"});
@@ -286,13 +269,6 @@ app.post("/auth/admin/login", async (req, res) => {
 //         );
 
 
-//         // res.cookie('authcookie', token, {
-//         //     maxAge: 900000,
-//         //     httpOnly: true,
-//         //     secure: process.env.NODE_ENV === "production",
-//         //     sameSite: 'none'
-//         // });
-
 //         res.cookie("authcookie", token, {
 //             maxAge: 900000,
 //             httpOnly: true,
@@ -323,11 +299,8 @@ app.get("/api/admin/contests", authenticateToken, async (req, res) => {
 // contest problems
 app.get("/api/admin/contests/:id/problems", authenticateToken, async (req, res) => {
     try{
-        // const contests = await db.query("SELECT id FROM contests where id = $1", [req.params.id]);
-        // const result = await db.query("SELECT * FROM problems where contest_id = $1", [contests.rows[0].id]);
-        // const result = await db.query("select * from problems p left join test_cases t on p.id = t.problem_id where p.contest_id = $1", [contests.rows[0].id]);
         const result = await db.query(`
-            SELECT p.*,
+            SELECT p.*, cp.points, cp."order",
                 COALESCE(
                     json_agg(
                     json_build_object(
@@ -338,9 +311,11 @@ app.get("/api/admin/contests/:id/problems", authenticateToken, async (req, res) 
                     '[]'
                 ) AS test_cases
             FROM problems p
+            JOIN contest_problems cp ON p.id = cp.problem_id
             LEFT JOIN test_cases t ON p.id = t.problem_id
-            WHERE p.contest_id = $1
-            GROUP BY p.id
+            WHERE cp.contest_id = $1
+            GROUP BY p.id, cp.points, cp."order"
+            ORDER BY cp."order" ASC
         `, [req.params.id]);
         return res.status(200).json(result.rows);
     }
@@ -349,34 +324,91 @@ app.get("/api/admin/contests/:id/problems", authenticateToken, async (req, res) 
     }
 });
 
-// add problem to contest
+// Search Problems (for adding to contest)
+app.get("/api/admin/problems/search", authenticateToken, async (req, res) => {
+    try {
+        const { q, limit = 20, offset = 0 } = req.query;
+        let query = "SELECT * FROM problems";
+        let params = [];
+        
+        if (q) {
+            query += " WHERE name ILIKE $1";
+            params.push(`%${q}%`);
+        }
+        
+        query += " ORDER BY id DESC LIMIT $" + (params.length + 1) + " OFFSET $" + (params.length + 2);
+        params.push(limit, offset);
+        
+        const result = await db.query(query, params);
+        return res.status(200).json(result.rows);
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({message: "Search failed"});
+    }
+});
+
+// Link existing problem to contest
+app.post("/api/admin/contests/:id/problems", authenticateToken, async(req, res) => {
+    try {
+        const { id } = req.params; // contest_id
+        const { problemId, points } = req.body;
+        
+        // Check if already exists
+        const check = await db.query(
+            "SELECT * FROM contest_problems WHERE contest_id = $1 AND problem_id = $2",
+            [id, problemId]
+        );
+        
+        if (check.rows.length > 0) {
+            return res.status(400).json({message: "Problem already added to this contest"});
+        }
+        
+        await db.query(
+            "INSERT INTO contest_problems (contest_id, problem_id, points) VALUES ($1, $2, $3)",
+            [id, problemId, points || 100]
+        );
+        
+        return res.status(200).json({message: "Problem added to contest"});
+    } catch(err) {
+        console.error(err);
+        return res.status(500).json({message: "Failed to add problem"});
+    }
+});
+
+// Create new problem (and optionally link to contest)
 app.post("/api/admin/problems", authenticateToken, async (req, res) => {
     try{
-        const {name, description, contestId, input_format, output_format, example_input, example_output, test_cases, test_case_results} = req.body;
+        const {name, description, contestId, input_format, output_format, example_input, example_output, test_cases, points} = req.body;
         
-        // Parse test cases if they come as strings (from legacy frontend form)
-        let inputs = [];
-        let outputs = [];
+        // Parse test cases - Expecting a single consistent array of objects {input, expected_output}
+        let parsedTestCases = [];
         try {
-            inputs = typeof test_cases === 'string' ? JSON.parse(test_cases) : (test_cases || []);
-            outputs = typeof test_case_results === 'string' ? JSON.parse(test_case_results) : (test_case_results || []);
+            parsedTestCases = typeof test_cases === 'string' ? JSON.parse(test_cases) : (test_cases || []);
         } catch (e) {
             console.error("JSON parse error", e);
             return res.status(400).json({message: "Invalid JSON for test cases"});
         }
 
         const problem = await db.query(
-            "INSERT INTO problems (name, description, contest_id, input_format, output_format, example_input, example_output) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *", 
-            [name, description, contestId, input_format, output_format, example_input, example_output]
+            "INSERT INTO problems (name, description, input_format, output_format, example_input, example_output) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *", 
+            [name, description, input_format, output_format, example_input, example_output]
         );
         
         const problemId = problem.rows[0].id;
 
+        // Link to contest if contestId is provided
+        if (contestId) {
+             await db.query(
+                "INSERT INTO contest_problems (contest_id, problem_id, points) VALUES ($1, $2, $3)",
+                [contestId, problemId, points || 100]
+            );
+        }
+
         // Insert test cases
-        for(let i=0; i<inputs.length; i++) {
+        for(let tc of parsedTestCases) {
             await db.query(
                 "INSERT INTO test_cases (problem_id, input, expected_output) VALUES ($1, $2, $3)",
-                [problemId, inputs[i] || "", outputs[i] || ""]
+                [problemId, tc.input || "", tc.expected_output || ""]
             );
         }
         
@@ -407,7 +439,7 @@ app.delete("/api/admin/problems", authenticateToken, async (req, res) => {
 
 app.put("/api/admin/problems", authenticateToken, async (req, res) => {
     try{
-        let {name, description, input_format, output_format, example_input, example_output, test_cases, test_case_results, contestId, problemId } = req.body;
+        let {name, description, input_format, output_format, example_input, example_output, test_cases, points, contestId, problemId } = req.body;
         console.log("Update Problem Request Body:", req.body);
         
         // Fallback: if problemId is missing, check if 'id' is present
@@ -419,30 +451,35 @@ app.put("/api/admin/problems", authenticateToken, async (req, res) => {
             return res.status(400).json({ error: "problemId is required" });
         }
 
-        console.log(`Updating problem ${problemId} for contest ${contestId}`);
-        
+        // Update problem details (independent of contest)
         await db.query(
-            "UPDATE problems SET name = $1, description = $2, contest_id = $3, input_format = $4, output_format = $5, example_input = $6, example_output = $7 WHERE id = $8", 
-            [name, description, contestId, input_format, output_format, example_input, example_output, problemId]
+            "UPDATE problems SET name = $1, description = $2, input_format = $3, output_format = $4, example_input = $5, example_output = $6 WHERE id = $7", 
+            [name, description, input_format, output_format, example_input, example_output, problemId]
         );
 
-        // Update test cases: Delete old ones and insert new ones
-        let inputs = [];
-        let outputs = [];
-        try {
-            inputs = typeof test_cases === 'string' ? JSON.parse(test_cases) : (test_cases || []);
-            outputs = typeof test_case_results === 'string' ? JSON.parse(test_case_results) : (test_case_results || []);
-        } catch (e) {
-            console.error("JSON parse error", e);
-            // Don't fail the whole update if test cases are bad, but maybe we should?
+        // Update contest specific details (points) if contestId is present
+        if (contestId) {
+             await db.query(
+                "UPDATE contest_problems SET points = $1 WHERE contest_id = $2 AND problem_id = $3",
+                [points || 100, contestId, problemId]
+            );
         }
 
-        if (inputs.length > 0 || outputs.length > 0) {
+        // Update test cases: Delete old ones and insert new ones
+        // Expecting test_cases to be array of Objects
+        let parsedTestCases = [];
+        try {
+            parsedTestCases = typeof test_cases === 'string' ? JSON.parse(test_cases) : (test_cases || []);
+        } catch (e) {
+            console.error("JSON parse error", e);
+        }
+
+        if (parsedTestCases.length > 0) {
              await db.query("DELETE FROM test_cases WHERE problem_id = $1", [problemId]);
-             for(let i=0; i<inputs.length; i++) {
+             for(let tc of parsedTestCases) {
                 await db.query(
                     "INSERT INTO test_cases (problem_id, input, expected_output) VALUES ($1, $2, $3)",
-                    [problemId, inputs[i] || "", outputs[i] || ""]
+                    [problemId, tc.input || "", tc.expected_output || ""]
                 );
              }
         }
@@ -544,6 +581,28 @@ app.post("/api/admin/contests/:id/reset", authenticateToken, async (req, res) =>
     }
 })
 
+// Extend Contest Duration
+app.post("/api/admin/contests/:id/extend", authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { minutes } = req.body;
+        
+        if (!minutes || isNaN(minutes)) {
+            return res.status(400).json({ message: "Invalid minutes provided" });
+        }
+
+        await db.query(
+            "UPDATE contests SET end_time = end_time + INTERVAL '1 minute' * $1 WHERE id = $2",
+            [minutes, id]
+        );
+
+        return res.status(200).json({ message: `Contest extended by ${minutes} minutes` });
+    } catch (err) {
+        console.error("Extend contest error:", err);
+        return res.status(500).json({ message: "Failed to extend contest" });
+    }
+});
+
 // Delete Contest
 app.delete("/api/admin/contests/:id", authenticateToken, async (req, res) => {
     try{
@@ -588,34 +647,74 @@ app.get("/api/contest/:id", authenticateToken, async (req, res) => {
 
         const contest = contestResult.rows[0];
         
-        // Use DB time check for strict correctness or check fetched values
-        // Ideally we trust the DB to check time
-        const activeCheck = await db.query(
-            "SELECT * FROM contests WHERE id = $1 AND start_time <= CURRENT_TIMESTAMP AND (end_time IS NULL OR end_time >= CURRENT_TIMESTAMP)", 
-            [id]
-        );
+        // Calculate remaining time or status based on pause state
+        let currentTime = new Date();
+        let endTime = new Date(contest.end_time);
+        
+        
+        // Check if contest is active (handling pause)
+        // If paused, we effectively extend the potential end time visually, but the server just knows it's paused.
+        
+        if(!contest.start_time){
+             return res.status(400).json({ error: "Contest has not started yet." });
+        }
 
-        if(activeCheck.rows.length === 0){
-             // Determine why
-             const notStarted = await db.query("SELECT * FROM contests WHERE id = $1 AND (start_time > CURRENT_TIMESTAMP OR start_time IS NULL)", [id]);
-             if (notStarted.rows.length > 0) {
-                 return res.status(400).json({ error: "Contest has not started yet." });
-             } else {
-                 return res.status(400).json({ error: "Contest has ended." });
-             }
-        }
-        else{
-            const problems = await db.query("SELECT * FROM problems WHERE contest_id = $1", [id]);
-            return res.status(200).json({
-                contest: contest,
-                problems: problems.rows
-            });
-        }
+        const problems = await db.query(`
+            SELECT p.*, cp.points, cp."order"
+            FROM problems p
+            JOIN contest_problems cp ON p.id = cp.problem_id
+            WHERE cp.contest_id = $1
+            ORDER BY cp."order" ASC
+        `, [id]);
+        
+        return res.status(200).json({
+            contest: contest,
+            problems: problems.rows
+        });
     }
     catch(err){
         console.log(err);
+        return res.status(500).json({error: "Server error"});
     }
 })
+
+// Pause Contest
+app.post("/api/admin/contests/:id/pause", authenticateToken, async (req, res) => {
+    try {
+        const {id} = req.params;
+        await db.query(
+            "UPDATE contests SET is_paused = TRUE, remaining_time = GREATEST(0, EXTRACT(EPOCH FROM (end_time - CURRENT_TIMESTAMP))::INT) WHERE id = $1 AND is_paused = FALSE;", 
+            [id]
+        );
+        return res.status(200).json({message: "Contest paused"});
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({message: "Failed to pause contest"});
+    }
+});
+
+// Resume Contest
+app.post("/api/admin/contests/:id/resume", authenticateToken, async (req, res) => {
+    try {
+        const {id} = req.params;
+        
+        // We need to shift the end_time by the duration it was paused
+        // end_time = end_time + (NOW - paused_at)
+        await db.query(`
+            UPDATE contests 
+            SET end_time = CURRENT_TIMESTAMP + (remaining_time * INTERVAL '1 second'),
+                is_paused = FALSE,
+                remaining_time = 0
+            WHERE id = $1 AND is_paused = TRUE
+        `, [id]);
+        
+        return res.status(200).json({message: "Contest resumed"});
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({message: "Failed to resume contest"});
+    }
+});
+
 
 // Join Contest (Initialize Leaderboard)
 app.post("/api/contests/:id/join", authenticateToken, async (req, res) => {
@@ -758,6 +857,11 @@ app.post("/api/submissions", async (req, res) => {
     );
 
     if (activeCheck.rows.length === 0) {
+         // Check if it's because it's paused.
+         const pausedCheck = await db.query("SELECT * FROM contests WHERE id = $1 AND is_paused = TRUE", [contestID]);
+         if(pausedCheck.rows.length > 0) {
+             return res.status(400).json({ error: "Contest is paused. Submissions are temporarily disabled." });
+         }
         return res.status(400).json({ error: "Contest is not active. Cannot Submit!" });
     }
 
@@ -845,8 +949,8 @@ const PORT = process.env.PORT || env.PORT || 5000;
 const start_server = async () =>{
     try{
         await connect_db();
-        // app.listen(5000, "0.0.0.0", () => {
-        app.listen(PORT, "0.0.0.0", () => {
+        app.listen(PORT, () => {
+        // app.listen(PORT, "0.0.0.0", () => {
             console.log("Server running on port " + PORT);
         });
     }

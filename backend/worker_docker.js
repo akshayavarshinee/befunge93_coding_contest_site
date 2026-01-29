@@ -211,19 +211,26 @@ async function updateLeaderboard(data) {
 
             const start_time = await db.query("SELECT start_time FROM contests WHERE id = $1", [contestId]);
             
+            // Fetch points for this problem in this contest
+            const pointResult = await db.query(
+                "SELECT points FROM contest_problems WHERE contest_id = $1 AND problem_id = $2",
+                [contestId, problemId]
+            );
+            const points = pointResult.rows.length > 0 ? pointResult.rows[0].points : 100; // Default to 100 if not set
+
             if (start_time.rows.length > 0 && start_time.rows[0].start_time) {
                 const timeDiff = Math.max(0, Math.floor((new Date(submittedAt) - new Date(start_time.rows[0].start_time)) / 1000));
                 
-                console.log(`[Worker] Updating leaderboard for ${username}: +1 score, +${timeDiff}s time`);
+                console.log(`[Worker] Updating leaderboard for ${username}: +${points} score, +${timeDiff}s time`);
 
                 await db.query(
                     `INSERT INTO leaderboard (username, contest_id, total_score, total_time)
-                     VALUES ($1, $2, 1, $3)
+                     VALUES ($1, $2, $3, $4)
                      ON CONFLICT (username, contest_id) 
                      DO UPDATE SET 
-                         total_score = leaderboard.total_score + 1,
-                         total_time = leaderboard.total_time + $3`,
-                    [username, contestId, timeDiff]
+                         total_score = leaderboard.total_score + $3,
+                         total_time = leaderboard.total_time + $4`,
+                    [username, contestId, points, timeDiff]
                 );
             } else {
                 console.log(`[Worker] Leaderboard update skipped: No start time found for contest ${contestId}`);
