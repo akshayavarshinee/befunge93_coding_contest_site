@@ -50,7 +50,7 @@ app.use(cors({
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token']
 }));
-app.options("*", cors());
+app.options(/.*/, cors());
 app.use(express.json());
 app.use(express.urlencoded({extended:true}))
 app.use(cookieParser())
