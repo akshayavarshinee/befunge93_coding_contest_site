@@ -22,30 +22,42 @@ const saltRounds = 10;
 const allowedOrigins = [
     env.VITE_URL,
     "http://localhost:8080",
-    "http://localhost:5173", // Common Vite port
-    "https://" + (env.VITE_URL || "").replace(/^https?:\/\//, ""),
-    "http://" + (env.VITE_URL || "").replace(/^https?:\/\//, ""),
-].filter(Boolean);
+    "http://localhost:5173",
+].filter(Boolean).map(url => url.replace(/\/$/, ""));
+
+// Add protocol variations
+const baseViteUrl = (env.VITE_URL || "").replace(/^https?:\/\//, "").replace(/\/$/, "");
+if (baseViteUrl && !baseViteUrl.includes("localhost")) {
+    allowedOrigins.push(`https://${baseViteUrl}`);
+    allowedOrigins.push(`http://${baseViteUrl}`);
+}
+
+const uniqueOrigins = [...new Set(allowedOrigins)];
+console.log("Allowed CORS origins:", uniqueOrigins);
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes(origin.replace(/\/$/, ""))) {
+        const normalizedOrigin = origin.replace(/\/$/, "");
+        if (uniqueOrigins.includes(normalizedOrigin)) {
             callback(null, true);
         } else {
-            console.warn(`[CORS] Request from blocked origin: ${origin}`);
-            callback(new Error('Not allowed by CORS'));
+            console.warn(`[CORS] Rejected: ${origin}. Allowed: ${JSON.stringify(uniqueOrigins)}`);
+            callback(new Error("Not allowed by CORS"));
         }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token']
 }));
+app.options("*", cors());
 app.use(express.json());
 app.use(express.urlencoded({extended:true}))
 app.use(cookieParser())
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: { policy: "unsafe-none" }
+}));
 
 // Request Logger
 app.use((req, res, next) => {   
@@ -963,6 +975,15 @@ app.get("/api/leaderboard", authenticateToken,  async(req, res) => {
         return res.status(500).json({ error: "Failed to fetch leaderboard" });
     }
 })
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error(`[Global Error] ${err.stack}`);
+    res.status(500).json({ 
+        error: "Internal Server Error", 
+        message: process.env.NODE_ENV === "production" ? "Something went wrong" : err.message 
+    });
+});
 
 const PORT = process.env.PORT || env.PORT || 5000;
 const start_server = async () =>{
