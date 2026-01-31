@@ -689,8 +689,8 @@ app.post("/api/admin/contests/:id/end", authenticateToken, async (req, res) => {
                              + EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - last_state_change_at))::INT
                         ELSE total_active_seconds
                     END,
-                is_paused = TRUE,
-                end_time = CURRENT_TIMESTAMP
+                is_paused = FALSE,
+                end_time = CURRENT_TIMESTAMP - INTERVAL '1 second'
             WHERE id = $1
         `, [id]);
 
