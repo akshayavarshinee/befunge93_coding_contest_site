@@ -10,10 +10,11 @@ interface ContestCardProps {
   index: number;
 }
 
-type ContestStatus = 'upcoming' | 'running' | 'ended';
+type ContestStatus = 'upcoming' | 'running' | 'paused' | 'ended';
 
 const getContestStatus = (contest: Contest): ContestStatus => {
   const now = new Date();
+  if (contest.is_paused) return 'paused';
   if (!contest.start_time) return 'upcoming';
   
   const startTime = new Date(contest.start_time);
@@ -36,6 +37,12 @@ const statusConfig = {
     icon: Play,
     className: 'status-running',
     borderClass: 'border-terminal-green/30 hover:border-terminal-green/50',
+  },
+  paused: {
+    label: 'Paused',
+    icon: Clock,
+    className: 'bg-warning-amber/10 text-warning-amber border-warning-amber/30',
+    borderClass: 'border-warning-amber/30 hover:border-warning-amber/50',
   },
   ended: {
     label: 'Ended',

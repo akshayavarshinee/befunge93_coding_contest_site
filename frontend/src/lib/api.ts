@@ -28,7 +28,7 @@ api.interceptors.request.use((config) => {
 export interface User {
   id: string;
   email: string;
-  username: string;
+  username: string; // Used for <id>-<name> display
   isAdmin?: boolean;
 }
 
@@ -39,10 +39,8 @@ export interface Contest {
   start_time: string | null;
   end_time: string | null;
   is_paused?: boolean;
-  paused_at?: string;
-  total_paused_duration?: number;
+  total_active_seconds?: number;
 }
-
 export interface Problem {
   id: string;
   name: string;
@@ -69,8 +67,8 @@ export interface Submission {
 
 export interface LeaderboardEntry {
   rank?: number;
-  user_id: string;
-  username: string;
+  team_id?: string;
+  username: string; // Formatted as <id>-<name>
   total_score: number;
   total_time: number;
   violation_count?: number;
@@ -78,18 +76,27 @@ export interface LeaderboardEntry {
 
 // Auth APIs
 export const authApi = {
-  register: async (username: string, email: string, password: string) => {
-    const response = await api.post('/auth/register', { username, email, password});
+  register: async (data: {
+    teamName: string;
+    tlName: string;
+    tlEmail: string;
+    college: string;
+    password: string;
+    m1Name?: string;
+    m1Email?: string;
+    m1College?: string;
+  }) => {
+    const response = await api.post('/auth/register', data);
     return response.data;
   },
 
-  login: async (username: string, email: string, password: string) => {
-    const response = await api.post('/auth/login', { username, email, password});
+  login: async (email: string, password: string) => {
+    const response = await api.post('/auth/login', { email, password });
     return response.data;
   },
 
-  adminLogin: async (username: string, email: string, password: string) => {
-    const response = await api.post('/auth/admin/login', { username, email, password});
+  adminLogin: async (email: string, password: string) => {
+    const response = await api.post('/auth/admin/login', { email, password });
     return response.data;
   },
 
@@ -201,11 +208,17 @@ export const contestApi = {
     const response = await api.post(`/api/admin/contests/${contestId}/problems`, { problemId, points });
     return response.data;
   },
+  exportLeaderboard: async (contestId: string) => {
+    const response = await api.get(`/api/admin/contests/${contestId}/export`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
 };
 
 // Submission APIs
 export const submissionApi = {
-  submit: async (data: { userId: string; contestID: string; problemId: string; code: string; language: string }): Promise<{ submissionId: string; status: string }> => {
+  submit: async (data: { contestID: string; problemId: string; code: string; language: string }): Promise<{ submissionId: string; status: string }> => {
     const response = await api.post('/api/submissions', data);
     return response.data;
   },

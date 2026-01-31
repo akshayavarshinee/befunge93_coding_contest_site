@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 
 const Contests = () => {
   const [contests, setContests] = useState<Contest[]>([]);
-  const [filter, setFilter] = useState<'all' | 'running' | 'upcoming' | 'ended'>('all');
+  const [filter, setFilter] = useState<'all' | 'running' | 'paused' | 'upcoming' | 'ended'>('all');
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -30,6 +30,7 @@ const Contests = () => {
 
   const getContestStatus = (contest: Contest) => {
     const now = new Date();
+    if (contest.is_paused) return 'paused';
     if (!contest.start_time) return 'upcoming';
     const startTime = new Date(contest.start_time);
     const endTime = contest.end_time ? new Date(contest.end_time) : null;
@@ -83,7 +84,7 @@ const Contests = () => {
           </div>
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-muted-foreground" />
-            {(['all', 'running', 'upcoming', 'ended'] as const).map((f) => (
+            {(['all', 'running', 'paused', 'upcoming', 'ended'] as const).map((f) => (
               <Button
                 key={f}
                 variant={filter === f ? 'default' : 'ghost'}

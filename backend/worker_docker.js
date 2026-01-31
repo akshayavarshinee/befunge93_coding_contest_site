@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { db } from "./db.js";
-import DockerExecutor from "./dockerExecutor.js";
+import LocalExecutor from "./localExecutor.js";
 import Redis from "ioredis";
 import env from "./env.js";
 
@@ -11,19 +11,24 @@ import env from "./env.js";
  * - Automatic cleanup and graceful termination
  */
 
-const dockerExecutor = new DockerExecutor({
-    imageName: 'befunge-runner:latest',
-    cpuQuota: 50000,        // 50% of one CPU core
-    memoryLimit: '128m',    // 128 MB RAM limit
-    timeoutMs: 5000,        // 5 second wall-clock timeout
-    networkMode: 'none'     // No network access
+const executor = new LocalExecutor({
+    maxSteps: 1000000,      // 1M instructions limit
+    timeoutMs: 3000         // 3 second wall-clock limit
 });
+
+try{
+    await db.connect();
+}
+catch(err){
+    console.error("Error connecting to database:", err);
+    process.exit(1);
+}
 
 const worker = new Worker(
     "submissions",
     async (job) => {
         console.log(`[Worker] Processing job ${job.id}`);
-        const { code, submittedAt, problemId, userId, contestId } = job.data;
+        const { code, submittedAt, problemId, teamId, contestId, solveTime } = job.data;
 
         let finalVerdict = "Accepted";
         let finalOutput = "";
@@ -65,7 +70,7 @@ const worker = new Worker(
                 console.log(`[Worker] Job ${job.id}: Running test case ${i + 1}/${inputs.length}`);
 
                 // Execute in isolated Docker container
-                const result = await dockerExecutor.execute(code, input);
+                const result = await executor.execute(code, input);
 
                 console.log(`[Worker] Job ${job.id}: Test case ${i + 1} verdict: ${result.verdict}`);
 
@@ -109,12 +114,11 @@ const worker = new Worker(
             if (finalVerdict === "Accepted") {
                 finalOutput = `All ${inputs.length} test case(s) passed`;
                 // Update leaderboard if this is the FIRST accepted submission
-                // We do this BEFORE persisting the submission so the check for existing solutions works correctly
                 await updateLeaderboard({
-                    userId,
+                    teamId,
                     problemId,
                     contestId,
-                    submittedAt
+                    solveTime
                 });
             }
 
@@ -122,13 +126,14 @@ const worker = new Worker(
 
             // 4. Persist submission to database
             await persistSubmission({
-                userId,
+                teamId,
                 problemId,
                 contestId,
                 submittedAt,
                 verdict: finalVerdict,
                 code,
                 output: finalOutput,
+                solveTime,
                 testCaseResults
             });
 
@@ -146,9 +151,9 @@ const worker = new Worker(
             // Fallback: save as internal error
             try {
                 await db.query(
-                    `INSERT INTO submissions (user_id, problem_id, contest_id, submitted_at, verdict, code) 
-                     VALUES ($1, $2, $3, $4, $5, $6)`,
-                    [userId, problemId, contestId || null, new Date(submittedAt), "Error", code]
+                    `INSERT INTO submissions (team_id, problem_id, contest_id, submitted_at, verdict, code, solve_time) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [teamId, problemId, contestId || null, new Date(submittedAt), "Error", code, solveTime || 0]
                 );
             } catch (dbErr) {
                 console.error("[Worker] Failed to save error verdict:", dbErr);
@@ -171,77 +176,68 @@ const worker = new Worker(
  * Persist submission result to database
  */
 async function persistSubmission(data) {
-    const { userId, problemId, contestId, submittedAt, verdict, code, output } = data;
+    const { teamId, problemId, contestId, verdict, code, solveTime, submittedAt } = data;
 
-    const insertQuery = `
-        INSERT INTO submissions (user_id, problem_id, contest_id, submitted_at, verdict, code) 
-        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-    `;
-
-    await db.query(insertQuery, [
-        userId,
-        problemId,
-        contestId || null,
-        new Date(submittedAt),
-        verdict,
-        code
-    ]);
+    await db.query(
+        `
+        INSERT INTO submissions (team_id, problem_id, contest_id, submitted_at, verdict, code, solve_time)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `,
+        [teamId, problemId, contestId, submittedAt, verdict, code, solveTime]
+    );
 }
+
 
 /**
  * Update leaderboard for accepted submissions
  */
 async function updateLeaderboard(data) {
-    const { userId, problemId, contestId, submittedAt } = data;
+    const { teamId, problemId, contestId, solveTime } = data;
 
-    console.log(`[Worker] Checking leaderboard update for User ${userId}, Problem ${problemId}, Contest ${contestId}`);
-
-    // Check if user has already solved this problem
-    const existingSol = await db.query(
-        "SELECT id FROM submissions WHERE user_id = $1 AND problem_id = $2 AND contest_id = $3 AND verdict = 'Accepted'",
-        [userId, problemId, contestId]
+    // Check if this team already solved the problem
+    const existing = await db.query(
+        `
+        SELECT 1
+        FROM submissions
+        WHERE team_id = $1
+          AND problem_id = $2
+          AND contest_id = $3
+          AND verdict = 'Accepted'
+        `,
+        [teamId, problemId, contestId]
     );
 
-    // Only update leaderboard for first accepted submission
-    if (existingSol.rows.length === 0) {
-        const userResult = await db.query("SELECT username FROM users WHERE id = $1", [userId]);
-        
-        if (userResult.rows.length > 0) {
-            const username = userResult.rows[0].username;
-
-            const start_time = await db.query("SELECT start_time FROM contests WHERE id = $1", [contestId]);
-            
-            // Fetch points for this problem in this contest
-            const pointResult = await db.query(
-                "SELECT points FROM contest_problems WHERE contest_id = $1 AND problem_id = $2",
-                [contestId, problemId]
-            );
-            const points = pointResult.rows.length > 0 ? pointResult.rows[0].points : 100; // Default to 100 if not set
-
-            if (start_time.rows.length > 0 && start_time.rows[0].start_time) {
-                const timeDiff = Math.max(0, Math.floor((new Date(submittedAt) - new Date(start_time.rows[0].start_time)) / 1000));
-                
-                console.log(`[Worker] Updating leaderboard for ${username}: +${points} score, +${timeDiff}s time`);
-
-                await db.query(
-                    `INSERT INTO leaderboard (username, contest_id, total_score, total_time)
-                     VALUES ($1, $2, $3, $4)
-                     ON CONFLICT (username, contest_id) 
-                     DO UPDATE SET 
-                         total_score = leaderboard.total_score + $3,
-                         total_time = leaderboard.total_time + $4`,
-                    [username, contestId, points, timeDiff]
-                );
-            } else {
-                console.log(`[Worker] Leaderboard update skipped: No start time found for contest ${contestId}`);
-            }
-        } else {
-            console.log(`[Worker] Leaderboard update skipped: User ${userId} not found`);
-        }
-    } else {
-        console.log(`[Worker] Leaderboard update skipped: User already solved this problem`);
+    if (existing.rows.length > 0) {
+        return;
     }
+
+    const pointResult = await db.query(
+        `
+        SELECT points
+        FROM contest_problems
+        WHERE contest_id = $1 AND problem_id = $2
+        `,
+        [contestId, problemId]
+    );
+
+    const points =
+        pointResult.rows.length > 0 ? pointResult.rows[0].points : 100;
+
+    await db.query(
+        `
+        INSERT INTO leaderboard (team_id, team_name, contest_id, total_score, total_time)
+        SELECT id, team_name, $2, $3, $4
+        FROM teams
+        WHERE id = $1
+        ON CONFLICT (team_id, contest_id)
+        DO UPDATE SET
+            total_score = leaderboard.total_score + EXCLUDED.total_score,
+            total_time  = leaderboard.total_time  + EXCLUDED.total_time
+        `,
+        [teamId, contestId, points, solveTime]
+    );
 }
+
 
 // Graceful shutdown handler
 process.on('SIGTERM', async () => {

@@ -82,7 +82,7 @@ const Landing = () => {
             >
               <div className="glass-card rounded-xl overflow-hidden border border-border/30">
                 <div className="flex items-center gap-2 px-4 py-3 bg-secondary/30 border-b border-border/30">
-                  <img src="../../favicon.ico" alt="Terminal" className="w-4 h-4" />
+                  <img src="/favicon.ico" alt="Terminal" className="w-4 h-4" />
                   <span className="text-xs text-muted-foreground font-mono ml-2">befunge-93</span>
                 </div>
                 <div className="p-6 font-mono text-sm text-left">

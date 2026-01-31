@@ -111,7 +111,7 @@ const Leaderboard = () => {
           {/* Table Header */}
           <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-secondary/30 border-b border-border/30 text-sm font-medium text-muted-foreground uppercase tracking-wider">
             <div className="col-span-2 text-center">Rank</div>
-            <div className="col-span-4">Username</div>
+            <div className="col-span-4">Team</div>
             <div className="col-span-2 text-center">Score</div>
             <div className="col-span-2 text-center">Time</div>
             <div className="col-span-2 text-center text-destructive">Violations</div>
@@ -144,7 +144,7 @@ const Leaderboard = () => {
                 const rank = index + 1;
                 return (
                   <motion.div
-                    key={entry.user_id}
+                    key={entry.team_id || index}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: index * 0.05 }}

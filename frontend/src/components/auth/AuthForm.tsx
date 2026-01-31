@@ -9,12 +9,19 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { authApi } from '@/lib/api';
-import { Terminal, Mail, Lock, Eye, EyeOff, ArrowRight, Shield, UserRound } from 'lucide-react';
+import { Terminal, Mail, Lock, Eye, EyeOff, ArrowRight, Shield, UserRound, Loader } from 'lucide-react';
 
 const authSchema = z.object({
-  email: z.string().email('Invalid email address').max(255, 'Email too long'),
-  password: z.string().min(6, 'Password must be at least 6 characters').max(128, 'Password too long'),
-  username: z.string().min(3, 'Username must be at least 3 characters').max(255, 'Username too long'),
+  email: z.string().email('Invalid email address').max(255),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  // Registration only fields
+  teamName: z.string().min(3, 'Team name too short').optional(),
+  tlName: z.string().min(2, 'Name too short').optional(),
+  college: z.string().min(2, 'College name too short').optional(),
+  // Optional member fields
+  m1Name: z.string().optional(),
+  m1Email: z.string().email('Invalid email address').optional().or(z.literal('')),
+  m1College: z.string().optional(),
 });
 
 type AuthFormData = z.infer<typeof authSchema>;
@@ -26,6 +33,7 @@ interface AuthFormProps {
 const AuthForm = ({ mode }: AuthFormProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showMember2, setShowMember2] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { signIn, signUp } = useAuth();
@@ -42,21 +50,27 @@ const AuthForm = ({ mode }: AuthFormProps) => {
     setIsLoading(true);
     try {
       if (mode === 'register') {
-        await signUp(data.email, data.password, data.username);
+        await signUp({
+          teamName: data.teamName,
+          tlName: data.tlName,
+          tlEmail: data.email,
+          college: data.college,
+          password: data.password,
+          m1Name: data.m1Name,
+          m1Email: data.m1Email,
+          m1College: data.m1College
+        });
         toast({
           title: 'Registration successful!',
-          description: 'Welcome to TALOS Stranger Codes.',
+          description: 'Team created. Welcome to the contest!',
         });
         navigate('/api/contests');
       } else {
-        // Login and Admin Login use the same signIn method
-        await signIn(data.email, data.password, data.username);
-        
+        await signIn(data.email, data.password);
         toast({
           title: 'Welcome back!',
           description: 'Successfully logged in.',
         });
-        
         if (mode === 'admin') {
              navigate('/api/admin/contests');
         } else {
@@ -66,7 +80,7 @@ const AuthForm = ({ mode }: AuthFormProps) => {
     } catch (error: any) {
       toast({
         title: 'Authentication failed',
-        description: error.message || 'Please check your credentials and try again.',
+        description: error.response?.data?.message || 'Please check your credentials.',
         variant: 'destructive',
       });
     } finally {
@@ -75,155 +89,126 @@ const AuthForm = ({ mode }: AuthFormProps) => {
   };
 
   const titles = {
-    login: 'Access Terminal',
-    register: 'Initialize Account',
-    admin: 'Admin Access',
-  };
-
-  const descriptions = {
-    login: 'Enter your credentials to continue',
-    register: 'Create your account to compete',
-    admin: 'Restricted access point',
+    login: 'Team Login',
+    register: 'Initialize Team',
+    admin: 'Admin Console',
   };
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex items-center justify-center px-4 overflow-hidden">
+    <div className={`min-h-[calc(100vh-4rem)] flex items-center justify-center p-4 py-12 overflow-y-auto`}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full lg:w-1/2 max-w-4xl flex flex-col lg:flex-row items-center gap-10"
+        className="w-full max-w-2xl flex flex-col items-center gap-8"
       >
-        {/* Header */}
-        <div className="w-full lg:w-1/2 max-w-full text-center">
+        <div className="text-center">
           <motion.div
             initial={{ scale: 0.8 }}
             animate={{ scale: 1 }}
             className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 border border-primary/30 mb-4"
           >
-            {mode === 'admin' ? (
-              <Shield className="w-8 h-8 text-primary" />
-            ) : (
-              <Terminal className="w-8 h-8 text-primary animate-pulse-glow" />
-            )}
+            {mode === 'admin' ? <Shield className="w-8 h-8 text-primary" /> : <Terminal className="w-8 h-8 text-primary" />}
           </motion.div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">{titles[mode]}</h1>
-          <p className="text-muted-foreground">{descriptions[mode]}</p>
+          <h1 className="text-4xl font-black text-foreground mb-2 tracking-tight uppercase">{titles[mode]}</h1>
+          <p className="text-muted-foreground">{mode === 'register' ? 'Register your team and members' : 'Enter your credentials to continue'}</p>
         </div>
 
-        {/* Form Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="w-1/2 max-w-full glass-card rounded-2xl p-8"
-        >
+        <motion.div className="w-full glass-card rounded-2xl p-8 border-primary/10 shadow-2xl shadow-primary/5">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* Username Field */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <UserRound className="w-4 h-4 text-muted-foreground" />
-                Username
-              </label>
-              <Input
-                {...register('username')}
-                type="text"
-                placeholder="username"
-                variant="glass"
-                className={errors.username ? 'border-destructive' : ''}
-              />
-              {errors.username && (
-                <p className="text-sm text-destructive">{errors.username.message}</p>
-              )}
-            </div>
-            {/* Email Field */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <Mail className="w-4 h-4 text-muted-foreground" />
-                Email
-              </label>
-              <Input
-                {...register('email')}
-                type="email"
-                placeholder="your@email.com"
-                variant="glass"
-                className={errors.email ? 'border-destructive' : ''}
-              />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email.message}</p>
-              )}
-            </div>
+            
+            {mode === 'register' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-border/50">
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-primary">Team Details</label>
+                  <Input {...register('teamName')} placeholder="The Debuggers" variant="glass" />
+                  {errors.teamName && <p className="text-xs text-destructive">{errors.teamName.message}</p>}
+                </div>
 
-            {/* Password Field */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground flex items-center gap-2">
-                <Lock className="w-4 h-4 text-muted-foreground" />
-                Password
-              </label>
-              <div className="relative">
-                <Input
-                  {...register('password')}
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
-                  variant="glass"
-                  className={errors.password ? 'border-destructive pr-10' : 'pr-10'}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Team Leader Name</label>
+                  <Input {...register('tlName')} placeholder="John Doe" variant="glass" />
+                  {errors.tlName && <p className="text-xs text-destructive">{errors.tlName.message}</p>}
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">College</label>
+                  <Input {...register('college')} placeholder="MIT" variant="glass" />
+                  {errors.college && <p className="text-xs text-destructive">{errors.college.message}</p>}
+                </div>
               </div>
-              {errors.password && (
-                <p className="text-sm text-destructive">{errors.password.message}</p>
-              )}
+            )}
+
+            <div className="space-y-4">
+              <label className="text-xs font-bold uppercase tracking-widest text-primary">Authentication</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">{mode === 'register' ? 'Leader Email' : 'Email'}</label>
+                    <Input {...register('email')} type="email" placeholder="john@example.com" variant="glass" />
+                    {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-sm font-medium">Password</label>
+                    <div className="relative">
+                        <Input
+                            {...register('password')}
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="••••••••"
+                            variant="glass"
+                        />
+                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                    </div>
+                    {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+                </div>
+              </div>
             </div>
 
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              variant="glow"
-              size="lg"
-              className="w-full"
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              ) : (
-                <>
-                  {mode === 'register' ? 'Create Account' : 'Login'}
-                  <ArrowRight className="w-4 h-4" />
-                </>
+            {mode === 'register' && (
+              <div className="space-y-6 pt-6 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold uppercase tracking-widest text-primary">Optional Member</label>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowMember2(!showMember2)}>
+                        {showMember2 ? 'Remove' : 'Add Member'}
+                    </Button>
+                </div>
+
+                {showMember2 && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Name</label>
+                            <Input {...register('m1Name')} placeholder="Jane Doe" variant="glass" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Email</label>
+                            <Input {...register('m1Email')} type="email" placeholder="jane@example.com" variant="glass" />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <label className="text-sm font-medium">College</label>
+                            <Input {...register('m1College')} placeholder="MIT" variant="glass" />
+                        </div>
+                    </motion.div>
+                )}
+              </div>
+            )}
+
+            <Button type="submit" variant="glow" size="lg" className="w-full" disabled={isLoading}>
+              {isLoading ? <Loader className="w-5 h-5 animate-spin" /> : (
+                <>{mode === 'register' ? 'Register Team' : 'Sign In'} <ArrowRight className="ml-2 w-4 h-4" /></>
               )}
             </Button>
           </form>
 
-          {/* Footer Links */}
-          <div className="mt-6 pt-6 border-t border-border/50 text-center">
-            {mode === 'login' && (
-              <p className="text-sm text-muted-foreground">
-                Don't have an account?{' '}
-                <Link to="/auth/register" className="text-primary hover:underline">
-                  Register now
-                </Link>
-              </p>
-            )}
-            {mode === 'register' && (
-              <p className="text-sm text-muted-foreground">
-                Already have an account?{' '}
-                <Link to="/auth/login" className="text-primary hover:underline">
-                  Login here
-                </Link>
-              </p>
-            )}
+          <div className="mt-8 pt-6 border-t border-border/50 text-center space-y-2">
+            {mode === 'login' ? (
+              <p className="text-sm text-muted-foreground">New participating team? <Link to="/auth/register" className="text-primary hover:underline font-bold">Register here</Link></p>
+            ) : mode === 'register' ? (
+              <p className="text-sm text-muted-foreground">Already registered? <Link to="/auth/login" className="text-primary hover:underline font-bold">Login here</Link></p>
+            ) : null}
+            
             {mode !== 'admin' && (
-              <p className="text-sm text-muted-foreground mt-2">
-                <Link to="/auth/admin/login" className="text-muted-foreground hover:text-primary transition-colors">
-                  Admin Login →
-                </Link>
-              </p>
+              <Link to="/auth/admin/login" className="block text-xs text-muted-foreground hover:text-primary mt-4">Admin Dashboard Area →</Link>
             )}
           </div>
         </motion.div>

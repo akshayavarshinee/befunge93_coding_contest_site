@@ -22,9 +22,23 @@ import {
   Save,
   Calendar,
   CheckCircle,
+  Download,
+  Settings,
+  MoreVertical,
+  ChevronDown,
+  Trash,
+  RefreshCw,
 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import ContestLeaderboard from '@/components/contest/ContestLeaderboard';
+import ContestTimer from '@/components/contest/ContestTimer';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 
 const AdminDashboard = () => {
@@ -99,15 +113,15 @@ const AdminDashboard = () => {
 
   const handleStartContest = async (contestId: string) => {
     try {
-        await contestApi.start(contestId);
+        const response = await contestApi.start(contestId);
         toast({ title: 'Contest Started', description: 'The contest is now live!' });
         
-        const startTime = new Date().toISOString();
-        setContests(prev => prev.map(c => 
-            c.id === contestId ? { ...c, start_time: startTime, end_time: null } : c
-        ));
-        if (selectedContest?.id === contestId) {
-            setSelectedContest(prev => prev ? { ...prev, start_time: startTime, end_time: null } : null);
+        if (response.contest) {
+            const updated = response.contest;
+            setContests(prev => prev.map(c => c.id === contestId ? updated : c));
+            setSelectedContest(updated);
+        } else {
+            fetchContests();
         }
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to start contest', variant: 'destructive' });
@@ -116,15 +130,15 @@ const AdminDashboard = () => {
 
   const handleEndContest = async (contestId: string) => {
     try {
-        await contestApi.end(contestId);
+        const response = await contestApi.end(contestId);
         toast({ title: 'Contest Ended', description: 'The contest has been concluded.' });
         
-        const endTime = new Date().toISOString();
-        setContests(prev => prev.map(c => 
-            c.id === contestId ? { ...c, end_time: endTime } : c
-        ));
-        if (selectedContest?.id === contestId) {
-            setSelectedContest(prev => prev ? { ...prev, end_time: endTime } : null);
+        if (response.contest) {
+            const updated = response.contest;
+            setContests(prev => prev.map(c => c.id === contestId ? updated : c));
+            setSelectedContest(updated);
+        } else {
+            fetchContests();
         }
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to end contest', variant: 'destructive' });
@@ -132,13 +146,11 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteContest = async (contestId: string) => {
-
-
     try {
         await contestApi.delete(contestId);
         toast({ title: 'Contest Deleted', description: 'The contest has been permanently removed.' });
-        setSelectedContest(null); // Clear selection
-        fetchContests(); // Refresh list
+        setSelectedContest(null); 
+        fetchContests(); 
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to delete contest', variant: 'destructive' });
     }
@@ -146,14 +158,17 @@ const AdminDashboard = () => {
 
   const handleResetContest = async (contestId: string) => {
     try {
-        await contestApi.reset(contestId);
-        toast({ title: 'Contest Reset', description: 'The contest has been reset. All leaderboard and submission data cleared.' });
+        const response = await contestApi.reset(contestId);
+        toast({ title: 'Contest Reset', description: 'The contest has been reset.' });
         
-        setContests(prev => prev.map(c => 
-            c.id === contestId ? { ...c, start_time: null, end_time: null, is_paused: false, total_paused_duration: 0 } : c
-        ));
-        if (selectedContest?.id === contestId) {
-            setSelectedContest(prev => prev ? { ...prev, start_time: null, end_time: null, is_paused: false, total_paused_duration: 0 } : null);
+        if (response.contest) {
+            const updated = response.contest;
+            setContests(prev => prev.map(c => c.id === contestId ? updated : c));
+            if (selectedContest?.id === contestId) {
+                setSelectedContest(updated);
+            }
+        } else {
+            fetchContests();
         }
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to reset contest', variant: 'destructive' });
@@ -162,13 +177,15 @@ const AdminDashboard = () => {
 
   const handlePauseContest = async (contestId: string) => {
     try {
-        await contestApi.pause(contestId);
+        const response = await contestApi.pause(contestId);
         toast({ title: 'Contest Paused', description: 'Contest is now paused.' });
-         setContests(prev => prev.map(c => 
-            c.id === contestId ? { ...c, is_paused: true } : c
-        ));
-        if (selectedContest?.id === contestId) {
-            setSelectedContest(prev => prev ? { ...prev, is_paused: true } : null);
+        
+        if (response.contest) {
+            const updated = response.contest;
+            setContests(prev => prev.map(c => c.id === contestId ? updated : c));
+            setSelectedContest(updated);
+        } else {
+            fetchContests();
         }
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to pause contest', variant: 'destructive' });
@@ -177,17 +194,16 @@ const AdminDashboard = () => {
 
   const handleResumeContest = async (contestId: string) => {
     try {
-        await contestApi.resume(contestId);
+        const response = await contestApi.resume(contestId);
         toast({ title: 'Contest Resumed', description: 'Contest is running again.' });
-         setContests(prev => prev.map(c => 
-            c.id === contestId ? { ...c, is_paused: false } : c
-        ));
-        if (selectedContest?.id === contestId) {
-            setSelectedContest(prev => prev ? { ...prev, is_paused: false } : null);
+        
+        if (response.contest) {
+            const updated = response.contest;
+            setContests(prev => prev.map(c => c.id === contestId ? updated : c));
+            setSelectedContest(updated);
+        } else {
+            fetchContests();
         }
-        // Force refresh to get new end time if needed
-        fetchContests(); 
-        if(selectedContest) handleSelectContest(selectedContest);
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to resume contest', variant: 'destructive' });
     }
@@ -196,13 +212,33 @@ const AdminDashboard = () => {
   const handleExtendContest = async () => {
     if (!selectedContest || !extendMinutes) return;
     try {
-        await contestApi.extend(selectedContest.id, extendMinutes);
-        toast({ title: 'Contest Extended', description: `Added ${extendMinutes} minutes to the contest.` });
+        const response = await contestApi.extend(selectedContest.id, extendMinutes);
+        toast({ title: 'Contest Extended', description: `Added ${extendMinutes} minutes.` });
+        
+        const updatedContest = response.contest;
+        setContests(prev => prev.map(c => c.id === selectedContest.id ? updatedContest : c));
+        setSelectedContest(updatedContest);
         setShowExtendModal(false);
-        fetchContests();
-        handleSelectContest(selectedContest);
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to extend contest', variant: 'destructive' });
+    }
+  };
+
+  const handleExportLeaderboard = async () => {
+    if (!selectedContest) return;
+    try {
+        const blob = await contestApi.exportLeaderboard(selectedContest.id);
+        const url = window.URL.createObjectURL(new Blob([blob]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `leaderboard_contest_${selectedContest.id}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        toast({ title: 'Export Successful', description: 'Leaderboard CSV downloaded.' });
+    } catch (e) {
+        console.error(e);
+        toast({ title: 'Export Failed', description: 'Failed to download CSV.', variant: 'destructive' });
     }
   };
 
@@ -451,149 +487,182 @@ const AdminDashboard = () => {
             >
               {/* Contest Header */}
               <div className="flex items-start justify-between mb-8">
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground mb-2">
-                    {selectedContest.name}
-                  </h2>
-                  <div className="flex-col items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-3">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setSelectedContest(null)}
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-full"
+                    >
+                      <ChevronRight className="w-4 h-4 rotate-180" />
+                    </Button>
+                    <h2 className="text-2xl font-bold text-foreground tracking-tight">
+                      {selectedContest.name}
+                    </h2>
                     <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${
                         getContestStatus(selectedContest) === 'running'
-                          ? 'bg-terminal-green/20 text-terminal-green'
+                          ? 'bg-terminal-green/10 text-terminal-green border-terminal-green/20'
                           : getContestStatus(selectedContest) === 'upcoming'
-                          ? 'bg-info-cyan/20 text-info-cyan'
-                          : 'bg-muted text-muted-foreground'
+                          ? 'bg-info-cyan/10 text-info-cyan border-info-cyan/20'
+                          : 'bg-muted/30 text-muted-foreground border-border/50'
                       }`}
                     >
-                      {getContestStatus(selectedContest).toUpperCase()}
+                      {getContestStatus(selectedContest)}
                     </span>
-                    <span className="flex-col items-center gap-2">
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {selectedContest.duration} minutes
-                      </div>
-                      {/* <div className="space-y-2 mb-6"> */}
-                      {selectedContest.start_time && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Calendar className="w-4 h-4" />
-                          <span>Start: {new Date(selectedContest.start_time).toLocaleString()}</span>
-                        </div>
-                      )}
-                      {selectedContest.end_time && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <CheckCircle className="w-4 h-4" />
-                          <span>End: {new Date(selectedContest.end_time).toLocaleString()}</span>
-                        </div>
-                      )}
-                      {/* </div> */}
-                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground ml-11">
+                    <div className="flex items-center gap-1.5 opacity-80">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{selectedContest.duration}m duration</span>
+                    </div>
                     
+                    {getContestStatus(selectedContest) === 'running' && selectedContest.end_time && (
+                      <div className="flex items-center gap-3">
+                         <div className="w-px h-3 bg-border/50" />
+                         <ContestTimer 
+                            endTime={new Date(selectedContest.end_time)} 
+                            isPaused={selectedContest.is_paused}
+                          />
+                      </div>
+                    )}
+
+                    {(selectedContest.start_time || selectedContest.end_time) && (
+                      <div className="flex items-center gap-3 opacity-60">
+                        <div className="w-px h-3 bg-border/50" />
+                        <div className="flex items-center gap-3">
+                          {selectedContest.start_time && (
+                            <span>Starts: {new Date(selectedContest.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          )}
+                          {selectedContest.end_time && (
+                            <span>Ends: {new Date(selectedContest.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  {/* Primary context-dependent button */}
                   {getContestStatus(selectedContest) === 'upcoming' && (
                     <Button
                       variant="success"
                       onClick={() => handleStartContest(selectedContest.id)}
-                      className="gap-2"
+                      className="gap-2 shadow-lg shadow-success/20"
                     >
                       <Play className="w-4 h-4" />
                       Start Contest
                     </Button>
                   )}
-                  {getContestStatus(selectedContest) === 'running' && (
-                    <>
-                      {selectedContest.is_paused ? (
-                         <Button
-                            variant="success"
-                            onClick={() => handleResumeContest(selectedContest.id)}
-                            className="gap-2"
-                         >
-                            <Play className="w-4 h-4" />
-                            Resume
-                         </Button>
-                      ) : (
-                         <Button
-                            variant="warning"
-                            onClick={() => handlePauseContest(selectedContest.id)}
-                            className="gap-2"
-                         >
-                            <Clock className="w-4 h-4" />
-                            Pause
-                         </Button>
-                      )}
-                    
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowExtendModal(true)}
-                        className="gap-2"
-                      >
+
+                  {getContestStatus(selectedContest) === 'running' && !selectedContest.is_paused && (
+                     <Button
+                        variant="warning"
+                        onClick={() => handlePauseContest(selectedContest.id)}
+                        className="gap-2 shadow-lg shadow-warning/20"
+                     >
                         <Clock className="w-4 h-4" />
-                        Extend
+                        Pause
+                     </Button>
+                  )}
+                  {/* Tertiary context-dependent button (End) */}
+                  {getContestStatus(selectedContest) === 'running' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEndContest(selectedContest.id)}
+                      className="text-destructive border-destructive/20 hover:bg-destructive/10"
+                    >
+                      End
+                    </Button>
+                  )}
+
+                  {getContestStatus(selectedContest) === 'running' && selectedContest.is_paused && (
+                     <Button
+                        variant="success"
+                        onClick={() => handleResumeContest(selectedContest.id)}
+                        className="gap-2 shadow-lg shadow-success/20"
+                     >
+                        <Play className="w-4 h-4" />
+                        Resume
+                     </Button>
+                  )}
+
+                  {/* Secondary metadata button (Extend) */}
+                  {getContestStatus(selectedContest) === 'running' && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowExtendModal(true)}
+                      className="gap-2 border-primary/30 hover:bg-primary/5"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Extend
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="outline"
+                    onClick={handleExportLeaderboard}
+                    className="gap-2 border-primary/30 hover:bg-primary/5"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export
+                  </Button>
+
+                  {/* Actions Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="hover:bg-secondary">
+                        <MoreVertical className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="danger"
-                        onClick={() => handleEndContest(selectedContest.id)}
-                        className="gap-2"
-                      >
-                        <Square className="w-4 h-4" />
-                        End Contest
-                      </Button>
-                      <Button
-                        variant="outline"
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem 
                         onClick={() => handleResetContest(selectedContest.id)}
                         className="gap-2"
                       >
-                        <Play className="w-4 h-4" />
+                        <RefreshCw className="w-4 h-4" />
                         Reset Contest
-                      </Button>
-                    </>
-                  )}
-                  {getContestStatus(selectedContest) === 'ended' && (
-                    <Button
-                      variant="outline"
-                      onClick={() => handleResetContest(selectedContest.id)}
-                      className="gap-2"
-                    >
-                      <Play className="w-4 h-4" />
-                      Reset Contest
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDeleteContest(selectedContest.id)}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    title="Delete Contest"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={() => handleDeleteContest(selectedContest.id)}
+                        className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10"
+                      >
+                        <Trash className="w-4 h-4" />
+                        Delete Contest
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 
               {/* View Toggle */}
-              <div className="flex items-center gap-2 mb-6 bg-secondary/30 p-1 rounded-lg w-fit">
-                <Button
-                    variant={viewMode === 'problems' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('problems')}
-                    className="gap-2"
-                >
-                    <FileText className="w-4 h-4" />
-                    Problems
-                </Button>
-                <Button
-                    variant={viewMode === 'leaderboard' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('leaderboard')}
-                    className="gap-2"
-                >
-                    <Trophy className="w-4 h-4" />
-                    Leaderboard
-                </Button>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2 bg-secondary/30 p-1 rounded-lg w-fit">
+                  <Button
+                      variant={viewMode === 'problems' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('problems')}
+                      className="gap-2"
+                  >
+                      <FileText className="w-4 h-4" />
+                      Problems
+                  </Button>
+                  <Button
+                      variant={viewMode === 'leaderboard' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      onClick={() => setViewMode('leaderboard')}
+                      className="gap-2"
+                  >
+                      <Trophy className="w-4 h-4" />
+                      Leaderboard
+                  </Button>
+                </div>
               </div>
-
               {/* Content */}
               {viewMode === 'leaderboard' ? (
                 <ContestLeaderboard contestId={selectedContest.id} />
@@ -605,26 +674,26 @@ const AdminDashboard = () => {
                     <FileText className="w-5 h-5 text-primary" />
                     Problems
                   </h3>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAddExistingModal(true)}
-                      className="gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Existing
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleOpenNewProblem}
-                      className="gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Create New
-                    </Button>
-                  </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAddExistingModal(true)}
+                        className="h-8 text-xs hover:bg-primary/10 hover:text-primary transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        Add Existing
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleOpenNewProblem}
+                        className="h-8 text-xs shadow-md"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" />
+                        Create New
+                      </Button>
+                    </div>
                 </div>
 
                 {problems.length === 0 ? (
@@ -647,25 +716,40 @@ const AdminDashboard = () => {
                         key={problem.id}
                         className="flex items-center justify-between px-6 py-4 hover:bg-secondary/20 transition-colors"
                       >
-                        <div className="flex items-center gap-4">
-                          <span className="font-mono text-sm text-primary">#{index + 1}</span>
-                          <div>
-                            <h4 className="font-medium text-foreground">{problem.name}</h4>
-                            <p className="text-sm text-muted-foreground line-clamp-1">
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="w-8 h-8 rounded-lg bg-secondary/50 flex items-center justify-center font-mono text-xs text-muted-foreground border border-border/50">
+                            {index + 1}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <h4 className="font-semibold text-foreground truncate">{problem.name}</h4>
+                              {problem.points && (
+                                <span className="px-1.5 py-0.5 rounded bg-primary/10 text-[10px] font-bold text-primary border border-primary/20">
+                                  {problem.points}pts
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-1 opacity-70">
                               {problem.description}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => handleEditProblem(problem)}>
-                            <Edit className="w-4 h-4" />
+                        <div className="flex items-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 hover:bg-primary/10 hover:text-primary"
+                            onClick={() => handleEditProblem(problem)}
+                          >
+                            <Edit className="w-3.5 h-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
                             onClick={() => handleDeleteProblem(problem.id)}
                           >
-                            <Trash2 className="w-4 h-4 text-destructive" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       </div>

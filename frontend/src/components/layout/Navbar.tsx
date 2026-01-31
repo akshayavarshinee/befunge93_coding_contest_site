@@ -29,13 +29,17 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative">
-              <Terminal className="w-8 h-8 text-primary transition-all duration-300 group-hover:text-glow-primary" />
+          <Link to="/" className="flex items-center gap-2 group ">
+            <div className="relative ">
+              {/* <Terminal className="w-8 h-8 text-primary transition-all duration-300 group-hover:text-glow-primary" /> */}
+              {/* <img src="public/logo.avif" alt="Logo" className="w-8 h-8 text-primary transition-all duration-300 group-hover:text-glow-primary" /> */}
+
+              <img src="/Logo.avif" alt="Logo" className="w-7 h-12 " />
+
               <div className="absolute inset-0 bg-primary/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
             <span className="font-bold text-xl text-foreground">
-              <span className="text-primary text-glow-subtle">TALOS</span> <span className="eb-garamond-400 text-xl">Stranger Codes</span>
+              <span className="text-primary text-glow-subtle">TALOS</span> <span className="text-xl">Stranger Codes</span>
               {/* <img src="../../public/StrangerCodes.png" alt="Stranger Codes" height={250} width={240} className="align-y-center mt-1"/> */}
             </span>
           </Link>
@@ -74,7 +78,9 @@ const Navbar = () => {
                   ) : (
                     <User className="w-4 h-4 text-muted-foreground" />
                   )}
-                  <span className="text-sm text-muted-foreground">{user?.email}</span>
+                  <span className="text-sm text-foreground font-mono font-bold tracking-tight">
+                    {user?.username || user?.email}
+                  </span>
                 </div>
                 {isAdmin && (
                   <Link to="/api/admin/contests">

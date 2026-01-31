@@ -13,7 +13,8 @@
     "start": "concurrently --kill-others-on-fail \"npm run docker\" \"npm run wait:redis && npm run backend\" \"npm run wait:redis && npm run worker:docker\" \"npm run frontend\"",
     "dev": "concurrently --kill-others-on-fail \"npm run docker\" \"npm run wait:redis && npm run backend\" \"npm run wait:redis && npm run worker:docker\" \"npm run frontend\"",
     "setup:docker": "npm --prefix backend run setup:docker",
-    "test:docker": "npm --prefix backend run test:docker"
+    "test:docker": "npm --prefix backend run test:docker",
+    "judge": "concurrently --kill-others-on-fail \"npm run docker\" \"npm run wait:redis && npm run worker:docker\""
   },
   "keywords": [],
   "author": "",

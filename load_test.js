@@ -10,12 +10,13 @@ export let options = {
 export default function () {
   const payload = JSON.stringify({
     userId: __VU,
-    contestID: 10,
-    problemId: 12,
-    code: '"yoj",,,@'
+    contestID: 13,
+    problemId: 21,
+    code: '"elppa",,,,,@'
   });
 
   const res = http.post(
+    // "https://api-stranger-codes.up.railway.app/api/submissions",
     "http://host.docker.internal:5000/api/submissions",
     payload,
     { headers: { "Content-Type": "application/json" } }
@@ -28,7 +29,7 @@ export default function () {
   console.log("Status:", res.status);
   console.log("Body:", res.body);
 
-  sleep(5);
+  sleep(10);
 }
 
 // docker run --rm -v "%cd%:/app" -w /app grafana/k6 run load_test.js

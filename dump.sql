@@ -58,6 +58,20 @@ ALTER SEQUENCE public.admins_id_seq OWNED BY public.admins.id;
 
 
 --
+-- Name: contest_problems; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.contest_problems (
+    contest_id integer NOT NULL,
+    problem_id integer NOT NULL,
+    points integer DEFAULT 100,
+    "order" integer DEFAULT 0
+);
+
+
+ALTER TABLE public.contest_problems OWNER TO postgres;
+
+--
 -- Name: contests; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -67,7 +81,9 @@ CREATE TABLE public.contests (
     description text,
     duration integer,
     start_time timestamp without time zone,
-    end_time timestamp without time zone
+    end_time timestamp without time zone,
+    is_paused boolean DEFAULT false,
+    remaining_time integer
 );
 
 
@@ -141,7 +157,6 @@ CREATE TABLE public.problems (
     id integer NOT NULL,
     name character varying(255) NOT NULL,
     description text,
-    contest_id integer,
     input_format text,
     output_format text,
     example_input text,
@@ -353,13 +368,23 @@ COPY public.admins (id, email, password_hash, username) FROM stdin;
 
 
 --
+-- Data for Name: contest_problems; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY public.contest_problems (contest_id, problem_id, points, "order") FROM stdin;
+13	20	100	0
+13	12	100	0
+13	21	99	0
+13	22	100	0
+\.
+
+
+--
 -- Data for Name: contests; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.contests (id, name, description, duration, start_time, end_time) FROM stdin;
-11	testcases	\N	180	2026-01-26 13:33:35.109826	2026-01-26 13:34:21.696699
-12	Befunge 93 Battle	\N	120	\N	\N
-10	Test	\N	120	2026-01-26 17:08:45.56318	2026-01-26 19:08:45.56318
+COPY public.contests (id, name, description, duration, start_time, end_time, is_paused, remaining_time) FROM stdin;
+13	Test	\N	180	2026-01-29 21:12:57.499165	2026-01-30 00:12:57.499165	f	0
 \.
 
 
@@ -368,11 +393,7 @@ COPY public.contests (id, name, description, duration, start_time, end_time) FRO
 --
 
 COPY public.leaderboard (id, username, contest_id, total_score, total_time, violation_count) FROM stdin;
-651	test	11	0	0	\N
-652	test	10	1	75	\N
-654	test2	10	1	106	\N
-656	test3	10	1	134	\N
-658	test4	10	1	165	\N
+673	test	13	0	0	13
 \.
 
 
@@ -380,9 +401,12 @@ COPY public.leaderboard (id, username, contest_id, total_score, total_time, viol
 -- Data for Name: problems; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.problems (id, name, description, contest_id, input_format, output_format, example_input, example_output) FROM stdin;
-12	Joy	print joy	10	nothing	joy	""	"joy"
-19	positive or not		11				
+COPY public.problems (id, name, description, input_format, output_format, example_input, example_output) FROM stdin;
+19	positive or not					
+12	Hello	print hello	nothing	hello	""	"hello"
+20	Joy	print "joy"	nothing	joy		
+21	Apple	Print apple				
+22	Fibonacci Generator					
 \.
 
 
@@ -391,11 +415,11 @@ COPY public.problems (id, name, description, contest_id, input_format, output_fo
 --
 
 COPY public.submissions (id, user_id, problem_id, contest_id, submitted_at, verdict, code) FROM stdin;
-5914	4	12	10	2026-01-26 17:09:06.882	TLE	>v\r\n^<
-5915	4	12	10	2026-01-26 17:10:01.192	Accepted	"yoj",,,@
-5916	5	12	10	2026-01-26 17:10:31.834	Accepted	"yoj",,,@
-5917	501	12	10	2026-01-26 17:10:59.659	Accepted	"yoj",,,@
-5918	502	12	10	2026-01-26 17:11:31.264	Accepted	"yoj",,,@
+5935	4	22	13	2026-01-29 21:15:07.961	TLE	&09p019p129p>09g::1`#v_0.@\r\n                     >2`#v_10..@\r\nv                   -2g90<\r\n>10..>09g1-0`                        #v_@\r\n     ^p92p91g92p93.::+g92<g91<p90-1g90<\r\n
+5936	4	22	13	2026-01-29 21:16:08.449	WA	&09p019p129p>09g::1`#v_0.@\r\n                     >2`#v_10..@\r\nv                   -2g90<\r\n>10..>09g1-0`                        #v_@\r\n     ^p92p91g92p93.::+g92<g91<p90-1g90<\r\n
+5937	4	22	13	2026-01-29 21:16:25.726	WA	&09p019p129p>09g::1`#v_0.@\r\n                     >2`#v_10..@\r\nv                   -2g90<\r\n>10..>09g2-0`                        #v_@\r\n     ^p92p91g92p93.::+g92<g91<p90-1g90<\r\n
+5938	4	22	13	2026-01-29 21:20:10.59	TLE	&09p019p129p>09g::1`#v_0.@\r\n                     >2`#v_10..@\r\n            v       -2g90<\r\n            >10..>09g1-0`                   #v_@\r\n            ^p92p91g92p93.::+g92<g91<p90-1g90<\r\n
+5939	4	22	13	2026-01-29 21:37:10.076	TLE	&09p019p129p>09g::1`#v_0.@\r\n                     >2`#v_10..@\r\nv                   -2g90<\r\n>10..>09g1-0`                        #v_@\r\n     ^p92p91g92p93.::+g92<g91<p90-1g90<\r\n
 \.
 
 
@@ -404,7 +428,6 @@ COPY public.submissions (id, user_id, problem_id, contest_id, submitted_at, verd
 --
 
 COPY public.test_cases (id, problem_id, input, expected_output, is_hidden) FROM stdin;
-4	12		joy	t
 5	19	5	1	t
 6	19	-3		t
 7	19		1	t
@@ -415,6 +438,12 @@ COPY public.test_cases (id, problem_id, input, expected_output, is_hidden) FROM 
 12	19	42	1	t
 13	19	-2024		t
 14	19	999	1	t
+15	12		hello	t
+16	20		joy	t
+17	21		apple	t
+18	22	1	0	t
+19	22	20	0 1 1 2 3 5 8 13 21 34 55 89 144 233 377 610 987 1597 2584 4181 6765	t
+20	22	10	0 1 1 2 3 5 8 13 21 34 55 	t
 \.
 
 
@@ -939,35 +968,35 @@ SELECT pg_catalog.setval('public.admins_id_seq', 12, true);
 -- Name: contests_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.contests_id_seq', 12, true);
+SELECT pg_catalog.setval('public.contests_id_seq', 13, true);
 
 
 --
 -- Name: leaderboard_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.leaderboard_id_seq', 659, true);
+SELECT pg_catalog.setval('public.leaderboard_id_seq', 673, true);
 
 
 --
 -- Name: problems_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.problems_id_seq', 19, true);
+SELECT pg_catalog.setval('public.problems_id_seq', 22, true);
 
 
 --
 -- Name: submissions_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.submissions_id_seq', 5918, true);
+SELECT pg_catalog.setval('public.submissions_id_seq', 5939, true);
 
 
 --
 -- Name: test_cases_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.test_cases_id_seq', 14, true);
+SELECT pg_catalog.setval('public.test_cases_id_seq', 20, true);
 
 
 --
@@ -999,6 +1028,14 @@ ALTER TABLE ONLY public.admins
 
 ALTER TABLE ONLY public.admins
     ADD CONSTRAINT admins_username_key UNIQUE (username);
+
+
+--
+-- Name: contest_problems contest_problems_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.contest_problems
+    ADD CONSTRAINT contest_problems_pkey PRIMARY KEY (contest_id, problem_id);
 
 
 --
@@ -1074,19 +1111,27 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: contest_problems contest_problems_contest_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.contest_problems
+    ADD CONSTRAINT contest_problems_contest_id_fkey FOREIGN KEY (contest_id) REFERENCES public.contests(id) ON DELETE CASCADE;
+
+
+--
+-- Name: contest_problems contest_problems_problem_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.contest_problems
+    ADD CONSTRAINT contest_problems_problem_id_fkey FOREIGN KEY (problem_id) REFERENCES public.problems(id) ON DELETE CASCADE;
+
+
+--
 -- Name: leaderboard leaderboard_contest_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.leaderboard
     ADD CONSTRAINT leaderboard_contest_id_fkey FOREIGN KEY (contest_id) REFERENCES public.contests(id) ON DELETE CASCADE;
-
-
---
--- Name: problems problems_contest_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.problems
-    ADD CONSTRAINT problems_contest_id_fkey FOREIGN KEY (contest_id) REFERENCES public.contests(id) ON DELETE CASCADE;
 
 
 --

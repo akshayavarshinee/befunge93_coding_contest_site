@@ -3,10 +3,8 @@ FROM node:20-alpine
 
 # Create workspace directory first
 RUN mkdir -p /workspace
-
-# Install befunge93 in workspace so it's accessible
 WORKDIR /workspace
-RUN npm init -y && npm install befunge93
+RUN npm init -y
 
 # Create non-root user for execution
 RUN addgroup -S befunge && adduser -S befunge -G befunge

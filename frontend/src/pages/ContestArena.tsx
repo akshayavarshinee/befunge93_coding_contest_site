@@ -25,6 +25,7 @@ import {
   Play,
   History,
   RotateCcw,
+  User,
 } from 'lucide-react';
 import {
   Dialog,
@@ -39,6 +40,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import ContestLeaderboard from "@/components/contest/ContestLeaderboard";
+import BefungeResourcesContent from '@/components/BefungeResourcesContent';
 
 type SubmissionStatus = 'idle' | 'queued' | 'running' | 'accepted' | 'wrong' | 'error';
 
@@ -254,7 +256,6 @@ const ContestArena = () => {
         language: 'befunge93',
         problemId: selectedProblem.id,
         contestID: contestId!,
-        userId: user.id
       });
 
       // Polling for result
@@ -422,7 +423,14 @@ const ContestArena = () => {
             <span className="hidden sm:inline">Exit</span>
           </Link>
           <div className="h-6 w-px bg-border" />
-          {/* <h1 className="font-semibold text-foreground">Befunge Battle Arena - Round 1</h1> */}
+          {user && (
+            <div className="flex items-center gap-2 px-3 py-1 bg-secondary/30 rounded-full border border-border/50">
+              <User className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-mono font-bold text-foreground opacity-80">
+                {user.username}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4">
@@ -474,20 +482,29 @@ const ContestArena = () => {
                   </h2>
                 </div>
                 <nav className="flex-1 overflow-y-auto p-2">
-                  {problems.map((problem, index) => (
-                    <button
-                      key={problem.id}
-                      onClick={() => setSelectedProblem(problem)}
-                      className={`w-full text-left px-4 py-3 rounded-lg mb-1 transition-all duration-200 ${
-                        selectedProblem?.id === problem.id
-                          ? 'bg-primary/10 border border-primary/30 text-foreground'
-                          : 'hover:bg-secondary/50 text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <span className="font-mono text-sm text-primary">#{index + 1}</span>
-                      <span className="ml-2 text-sm">{problem.name}</span>
-                    </button>
-                  ))}
+                    {problems.map((problem, index) => (
+                      <button
+                        key={problem.id}
+                        onClick={() => setSelectedProblem(problem)}
+                        className={`w-full text-left px-4 py-3 rounded-lg mb-1 transition-all duration-200 group ${
+                          selectedProblem?.id === problem.id
+                            ? 'bg-primary/10 border border-primary/30 text-foreground'
+                            : 'hover:bg-secondary/50 text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center">
+                            <span className="font-mono text-sm text-primary">#{index + 1}</span>
+                            <span className="ml-2 text-sm truncate max-w-[140px]">{problem.name}</span>
+                          </div>
+                          {problem.points !== undefined && (
+                            <span className="text-[10px] font-bold bg-secondary/80 px-1.5 py-0.5 rounded text-muted-foreground group-hover:text-primary transition-colors">
+                              {problem.points} pts
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
                 </nav>
               </div>
             </motion.aside>
@@ -539,9 +556,17 @@ const ContestArena = () => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                 >
-                    <h2 className="text-2xl font-bold text-foreground mb-4">
-                    {selectedProblem.name}
-                    </h2>
+                    <div className="flex justify-between items-start mb-6">
+                        <h2 className="text-2xl font-bold text-foreground">
+                        {selectedProblem.name}
+                        </h2>
+                        {selectedProblem.points !== undefined && (
+                            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
+                                <Trophy className="w-4 h-4 text-primary" />
+                                <span className="text-xs font-bold text-primary">{selectedProblem.points} Points</span>
+                            </div>
+                        )}
+                    </div>
                     
                     <div className="prose prose-invert max-w-none">
                     <section className="mb-6">
@@ -708,53 +733,18 @@ const ContestArena = () => {
         </Dialog>
 
         <Sheet open={showResources} onOpenChange={setShowResources}>
-            <SheetContent side="right" className="w-[400px] sm:w-[540px] overflow-y-auto glass-card border-l border-border/50">
-                <SheetHeader className="mb-6">
-                    <SheetTitle className="flex items-center gap-2">
-                        <BookOpen className="w-5 h-5 text-primary" />
-                        Befunge-93 Resources
-                    </SheetTitle>
-                </SheetHeader>
-                
-                <div className="space-y-6">
-                     <section>
-                        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                            <Code className="w-4 h-4 text-primary" /> Commands
-                        </h3>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                            {[
-                                { c: '0-9', d: 'Push number' },
-                                { c: '+ - * / %', d: 'Arithmetic' },
-                                { c: '!', d: 'Logical NOT' },
-                                { c: '`', d: 'Greater than' },
-                                { c: '> < ^ v', d: 'Direction' },
-                                { c: '?', d: 'Random dir' },
-                                { c: '_ |', d: 'Horizontal/Vertical IF' },
-                                { c: '"', d: 'String mode' },
-                                { c: ': \\ $', d: 'Dup/Swap/Pop' },
-                                { c: '. ,', d: 'Output Int/Char' },
-                                { c: '#', d: 'Bridge (skip)' },
-                                { c: 'p g', d: 'Put/Get' },
-                                { c: '& ~', d: 'Input Int/Char' },
-                                { c: '@', d: 'End program' },
-                            ].map((i) => (
-                                <div key={i.c} className="p-2 rounded bg-secondary/30 border border-border/30">
-                                    <div className="font-mono text-primary font-bold">{i.c}</div>
-                                    <div className="text-xs text-muted-foreground">{i.d}</div>
-                                </div>
-                            ))}
-                        </div>
-                     </section>
- 
-                     <section>
-                        <h3 className="text-lg font-semibold mb-3">Tips</h3>
-                        <ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
-                            <li>Stack behaves like LIFO.</li>
-                            <li>"String mode" pushes ASCII values.</li>
-                            <li>The grid wraps around edges (toroid).</li>
-                            <li>Use <code>#</code> to jump over code.</li>
-                        </ul>
-                     </section>
+            <SheetContent side="left" className="w-[95vw] sm:max-w-[800px] md:max-w-[900px] overflow-y-auto glass-card border-l border-border/50 p-0">
+                <div className="h-full flex flex-col">
+                    <SheetHeader className="p-6 border-b border-border/50 shrink-0">
+                        <SheetTitle className="flex items-center gap-2 text-2xl font-black">
+                            <BookOpen className="w-6 h-6 text-primary" />
+                            BEFUNGE-93 <span className="text-primary">RESOURCES</span>
+                        </SheetTitle>
+                    </SheetHeader>
+                    
+                    <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+                         <BefungeResourcesContent />
+                    </div>
                 </div>
             </SheetContent>
         </Sheet>
