@@ -206,7 +206,7 @@ app.post('/auth/register', async (req, res) => {
             httpOnly: true,
             secure: env.NODE_ENV === "production",
             sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-            domain: env.NODE_ENV === "production" ? env.DOMAIN : "localhost"
+            domain: env.NODE_ENV === "production" ? (env.DOMAIN || null) : "localhost"
         });
 
         await logActivity("TEAM_REGISTER", "team", teamId, "team", teamId, { teamName });
@@ -258,11 +258,11 @@ app.post('/auth/login', async (req, res) => {
         );
 
         res.cookie("authcookie", token, {
-            maxAge: 900000,
+            maxAge: 21600000, // 6h
             httpOnly: true,
             secure: env.NODE_ENV === "production",
             sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-            domain: env.NODE_ENV === "production" ? env.DOMAIN : "localhost"
+            domain: env.NODE_ENV === "production" ? (env.DOMAIN || null) : "localhost"
         });
 
         await logActivity("TEAM_LOGIN", "team", team.id, "team", team.id, null);
@@ -289,7 +289,7 @@ app.post('/auth/logout', authenticateToken, (req, res) => {
     res.clearCookie("authcookie", {
         sameSite: env.NODE_ENV === "production" ? "none" : "lax",
         secure: env.NODE_ENV === "production",
-        domain: env.NODE_ENV === "production" ? env.DOMAIN : "localhost"
+        domain: env.NODE_ENV === "production" ? (env.DOMAIN || null) : "localhost"
     });
 
     return res.status(200).json({message:"User logged out successfully"});
@@ -322,11 +322,11 @@ app.post("/auth/admin/login", async (req, res) => {
 
 
         res.cookie("authcookie", token, {
-            maxAge: 21600000,
+            maxAge: 21600000, // 6h
             httpOnly: true,
             secure: env.NODE_ENV === "production",
             sameSite: env.NODE_ENV === "production" ? "none" : "lax",
-            domain: env.NODE_ENV === "production" ? env.DOMAIN : "localhost"
+            domain: env.NODE_ENV === "production" ? (env.DOMAIN || null) : "localhost"
         });
 
         await logActivity("ADMIN_LOGIN", "admin", admin.id, "admin", admin.id, null);
