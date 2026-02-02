@@ -348,7 +348,7 @@ const BefungeResourcesContent = () => {
           
           <ExampleCard 
             title="2. Printing a character"
-            code="65,@"
+            code="625**5+,@"
             description={<>65 is ASCII for A.<br/>, prints the character → output is A.</>}
           />
           
@@ -438,7 +438,10 @@ const BefungeResourcesContent = () => {
 
           <ExampleCard 
             title="7. Power Function (Hard)"
-            code={`109p > &19p > &:29p > 0\` #v_ 1. @\n      >       > 29g: 0\` #v_ 09g. @\n      ^ p90 * < g90 < g91 < p92 < -1 <`}
+            code={
+              `109p>&19p>&:29p>0\`#v_1.@
+                >  >29g: 0\`         #v_09g.@
+                ^p90*<g90<g91<p92< -1<`}
             description="Reads base and exponent, outputs base^exponent."
             dryRun={
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[10px]">

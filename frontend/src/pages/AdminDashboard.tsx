@@ -59,6 +59,8 @@ const AdminDashboard = () => {
   const [viewMode, setViewMode] = useState<'problems' | 'leaderboard'>('problems');
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [extendMinutes, setExtendMinutes] = useState(10);
+  const [showEditContestModal, setShowEditContestModal] = useState(false);
+  const [editingContestData, setEditingContestData] = useState({ id: '', name: '', duration: 120 });
 
   // New contest form
   const [newContest, setNewContest] = useState({ name: '', duration: 120 });
@@ -153,6 +155,26 @@ const AdminDashboard = () => {
         fetchContests(); 
     } catch (e) {
         toast({ title: 'Error', description: 'Failed to delete contest', variant: 'destructive' });
+    }
+  };
+
+  const handleUpdateContest = async (contestId: string, name: string, duration: number) => {
+    try {
+        setShowEditContestModal(false);
+        const response = await contestApi.update(contestId, name, duration);
+        toast({ title: 'Contest Updated', description: 'The contest has been updated.' });
+        
+        if (response.contest) {
+            const updated = response.contest;
+            setContests(prev => prev.map(c => c.id === contestId ? updated : c));
+            if (selectedContest?.id === contestId) {
+                setSelectedContest(updated);
+            }
+        } else {
+            fetchContests();
+        }
+    } catch (e) {
+        toast({ title: 'Error', description: 'Failed to update contest', variant: 'destructive' });
     }
   };
 
@@ -266,6 +288,15 @@ const AdminDashboard = () => {
       } catch (e: any) {
           toast({ title: "Error", description: e.response?.data?.message || "Failed to add problem", variant: "destructive" });
       }
+  };
+
+  const openEditContestModal = (contest: Contest) => {
+      setEditingContestData({
+          id: contest.id,
+          name: contest.name,
+          duration: contest.duration
+      });
+      setShowEditContestModal(true);
   };
 
   const handleCreateContest = async () => {
@@ -511,6 +542,9 @@ const AdminDashboard = () => {
                     >
                       {getContestStatus(selectedContest)}
                     </span>
+                    <Button variant="ghost" size="sm" onClick={() => openEditContestModal(selectedContest)} className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-secondary/50 rounded-full">
+                      <Edit className="w-4 h-4" />
+                    </Button>
                   </div>
                   
                   <div className="flex items-center gap-4 text-xs text-muted-foreground ml-11">
@@ -824,6 +858,60 @@ const AdminDashboard = () => {
                 <Button variant="glow" onClick={handleCreateContest} className="gap-2">
                   <Save className="w-4 h-4" />
                   Create Contest
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {/* Edit Contest Modal */}
+        {showEditContestModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="glass-card rounded-xl p-6 border border-border/30 w-full max-w-md"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-foreground">Edit Contest</h3>
+                <Button variant="ghost" size="icon" onClick={() => setShowEditContestModal(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    Contest Name
+                  </label>
+                  <Input
+                    placeholder="e.g., Befunge Battle Arena - Round 2"
+                    value={editingContestData.name}
+                    onChange={(e) => setEditingContestData((prev) => ({ ...prev, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    Duration (minutes)
+                  </label>
+                  <Input
+                    type="number"
+                    placeholder="120"
+                    value={editingContestData.duration}
+                    onChange={(e) =>
+                        setEditingContestData((prev) => ({ ...prev, duration: Number(e.target.value) }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <Button variant="ghost" onClick={() => setShowEditContestModal(false)}>
+                  Cancel
+                </Button>
+                <Button variant="glow" onClick={() => handleUpdateContest(editingContestData.id, editingContestData.name, editingContestData.duration)} className="gap-2">
+                  <Save className="w-4 h-4" />
+                  Update Contest
                 </Button>
               </div>
             </motion.div>

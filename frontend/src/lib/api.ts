@@ -149,6 +149,11 @@ export const contestApi = {
     return response.data;
   },
 
+  update: async (id: string, name: string, duration: number) => {
+    const response = await api.put(`/api/admin/contests/${id}`, { name, duration });
+    return response.data;
+  },
+
   addProblem: async (contestId: string, data: any) => {
     const response = await api.post('/api/admin/problems', { ...data, contestId });
     return response.data;

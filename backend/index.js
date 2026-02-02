@@ -637,6 +637,31 @@ app.post("/api/admin/contests", authenticateToken, async (req, res) => {
     }
 });
 
+// Update Contest
+app.put("/api/admin/contests/:id", authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, duration } = req.body;
+
+        if (!name || !duration) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        await db.query(
+            "UPDATE contests SET name = $1, duration = $2 WHERE id = $3",
+            [name, duration, id]
+        );
+
+        await logActivity("CONTEST_UPDATE", "admin", req.user.id, "contest", id, { name, duration });
+
+        return res.status(200).json({ message: "Contest updated successfully" });
+    }
+    catch (err) {
+        console.log(err);
+        return res.status(500).json({ error: "Failed to update contest" });
+    }
+});
+
 // Start Contest
 app.post("/api/admin/contests/:id/start", authenticateToken, async (req, res) => {
     try {
@@ -827,7 +852,7 @@ app.get("/api/admin/contests/:id/export", authenticateToken, async (req, res) =>
 
         // Fetch leaderboard in correct order
         const leaderboardResult = await db.query(`
-            SELECT l.team_id, l.team_name, l.total_score, l.total_time
+            SELECT l.team_id, l.team_name, l.total_score, l.total_time, l.violation_count
             FROM leaderboard l
             WHERE l.contest_id = $1
             ORDER BY l.total_score DESC, l.total_time ASC
@@ -838,7 +863,7 @@ app.get("/api/admin/contests/:id/export", authenticateToken, async (req, res) =>
         if (teamIds.length === 0) {
             res.setHeader('Content-Type', 'text/csv; charset=utf-8');
             res.setHeader('Content-Disposition', `attachment; filename=leaderboard_contest_${id}.csv`);
-            return res.send("team_id,team_name,team_leader_name,team_leader_email,team_leader_college,member_name,member_email,member_college\n");
+            return res.send("team_id,team_name, total_score, total_time, violation_count,team_leader_name,team_leader_email,team_leader_college,member_name,member_email,member_college\n");
         }
 
         // Fetch teams and their users
@@ -854,7 +879,7 @@ app.get("/api/admin/contests/:id/export", authenticateToken, async (req, res) =>
             usersByTeam[u.team_id].push(u);
         });
 
-        const headers = ["team_id", "team_name", "team_leader_name", "team_leader_email", "team_leader_college", "member_name", "member_email", "member_college"];
+        const headers = ["team_id", "team_name", "total_score", "total_time", "violation_count", "team_leader_name", "team_leader_email", "team_leader_college", "member_name", "member_email", "member_college"];
         let csvContent = "\ufeff" + headers.join(",") + "\n"; 
 
         for (const entry of leaderboardResult.rows) {
@@ -868,6 +893,9 @@ app.get("/api/admin/contests/:id/export", authenticateToken, async (req, res) =>
             const rowData = [
                 teamId,
                 team.team_name,
+                entry.total_score,
+                entry.total_time,
+                entry.violation_count,
                 leader.full_name || "",
                 leader.email || "",
                 leader.college || "",

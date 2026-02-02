@@ -232,7 +232,7 @@ async function updateLeaderboard(data) {
         ON CONFLICT (team_id, contest_id)
         DO UPDATE SET
             total_score = leaderboard.total_score + EXCLUDED.total_score,
-            total_time  = leaderboard.total_time  + EXCLUDED.total_time
+            total_time = GREATEST(leaderboard.total_time, EXCLUDED.total_time)
         `,
         [teamId, contestId, points, solveTime]
     );
