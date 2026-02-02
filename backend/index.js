@@ -1197,20 +1197,23 @@ app.post("/api/submissions", authenticateToken, async (req, res) => {
         return res.status(400).json({ error: "Missing required fields" });
     }
 
+    // Rate limit per TEAM (Atomic check using JWT ID to prevent race conditions)
+    // We check this BEFORE the DB lookup to protect resources
+    const rateLimitKey = `rate-limit:${req.user.id}`;
+    const allowed = await redis.set(rateLimitKey, "1", "EX", 5, "NX");
+
+    if (!allowed) {
+        return res.status(429).json({
+            error: "Rate limit exceeded. Try again in 5 seconds."
+        });
+    }
+
     // Resolve Team ID from token
     const teamResult = await db.query("SELECT id FROM teams WHERE tl_email = $1", [req.user.email]);
     if (teamResult.rows.length === 0) {
         return res.status(404).json({ error: "Team not found" });
     }
     const teamId = teamResult.rows[0].id;
-
-    // Rate limit per TEAM
-    const rateLimitKey = `rate-limit:${teamId}`;
-    if (await redis.get(rateLimitKey)) {
-        return res.status(429).json({
-            error: "Rate limit exceeded. Try again in 5 seconds."
-        });
-    }
 
     // Fetch stopwatch state
     const result = await db.query(`
@@ -1273,7 +1276,7 @@ app.post("/api/submissions", authenticateToken, async (req, res) => {
     const solveTime = elapsedActiveTime;
     const submittedAt = new Date(now);
 
-    await redis.set(rateLimitKey, "1", "EX", 5);
+
 
     // Enqueue job with frozen time and team metadata
     const job = await submissionQueue.add(
