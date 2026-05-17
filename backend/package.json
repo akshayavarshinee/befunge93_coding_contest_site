@@ -5,9 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js",
-    "setup:docker": "node setup_docker.js",
-    "worker:docker": "node worker_docker.js"
+    "worker": "node worker.js",
+    "start": "concurrently --kill-others-on-fail \npm run backend\" \"npm run worker\""
   },
   "keywords": [],
   "author": "",

@@ -3,21 +3,57 @@ import { sleep } from "k6";
 // import { __VU } from "k6/execution";
 
 export let options = {
-  vus: 200,
+  vus: 2,
   duration: "10s",
 };
 
+// "https://api-stranger-codes.up.railway.app",
+// "http://host.docker.internal:5000",
+
+const BASE_URL = "https://api-stranger-codes.up.railway.app"; 
+const email = `user${__VU}@gmail.com`;
+const password = "alskdjfhg";
+
 export default function () {
+  const loginRes = http.post(
+    `${BASE_URL}/auth/login`,
+    JSON.stringify({
+      email,
+      password,
+    }),
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if (loginRes.status !== 200) {
+    return;
+  }
+
+  const join = http.post(
+    `${BASE_URL}/contests/13/join`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  if(join.status !== 200) return;
+
   const payload = JSON.stringify({
-    userId: __VU,
     contestID: 13,
-    problemId: 21,
-    code: '"elppa",,,,,@'
+    problemId: 22,
+    code: `&09p019p129p>09g:1\`#v_0.@
+                                >2\`#v_10..@
+                                     >10..>09g1-0\`                       #v_@
+                                          ^p92p91g92p93.::+g92<g91<p90-1g90<`
   });
 
   const res = http.post(
-    // "https://api-stranger-codes.up.railway.app/api/submissions",
-    "http://host.docker.internal:5000/api/submissions",
+    `${BASE_URL}/api/submissions`,
     payload,
     { headers: { "Content-Type": "application/json" } }
   );

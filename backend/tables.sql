@@ -33,10 +33,10 @@ CREATE TABLE IF NOT EXISTS public.contests
     name character varying(255) NOT NULL,
     description text,
     duration integer, -- in minutes
-    start_time timestamp without time zone,
-    end_time timestamp without time zone,
+    start_time timestamp,
+    end_time timestamp,
     is_paused boolean DEFAULT false,
-    last_state_change_at timestamp without time zone,
+    last_state_change_at timestamp,
     total_active_seconds integer NOT NULL DEFAULT 0
 );
 
@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS public.submissions
     problem_id integer REFERENCES public.problems(id) ON DELETE CASCADE,
     contest_id integer REFERENCES public.contests(id) ON DELETE CASCADE,
     team_id integer NOT NULL REFERENCES public.teams(id) ON DELETE CASCADE,
-    submitted_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    submitted_at timestamp DEFAULT CURRENT_TIMESTAMP,
     verdict character varying(50),
     code text,
     solve_time integer DEFAULT 0
