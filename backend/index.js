@@ -11,7 +11,7 @@ import { submissionQueue } from "./queue.js";
 import Redis from "ioredis";
 import helmet from "helmet";
 import LocalExecutor from "./localExecutor.js";
-await import("./worker_docker.js")
+await import("./worker.js")
 
 
 const redis = new Redis(env.REDIS_URL);
